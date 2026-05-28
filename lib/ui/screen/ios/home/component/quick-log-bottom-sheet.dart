@@ -1,16 +1,19 @@
 import 'dart:math';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:orga1/ui/screen/ios/home/models/quick_log_habit.dart';
+import 'package:orga1/ui/screen/ios/home/component/edit-habit.dart';
 
 class QuickLogBottomSheet extends StatefulWidget {
-  final Map<String, dynamic> habit;
+  final QuickLogHabit habit;
   final Function(double updatedValue, String notes) onSave;
+  final Future<void> Function(QuickLogHabit updatedHabit)? onEditHabit;
 
   const QuickLogBottomSheet({
     super.key,
     required this.habit,
     required this.onSave,
+    this.onEditHabit,
   });
 
   @override
@@ -18,6 +21,7 @@ class QuickLogBottomSheet extends StatefulWidget {
 }
 
 class _QuickLogBottomSheetState extends State<QuickLogBottomSheet> {
+  late QuickLogHabit _habit;
   late TextEditingController _valueController;
   final TextEditingController _notesController = TextEditingController();
   late double _currentValue;
@@ -26,8 +30,9 @@ class _QuickLogBottomSheetState extends State<QuickLogBottomSheet> {
   @override
   void initState() {
     super.initState();
-    _currentValue = widget.habit['currentValue'] ?? 0.0;
-    _isCheckmarkType = widget.habit['goalType'] == 'checkmark';
+    _habit = widget.habit;
+    _currentValue = _habit.currentValue;
+    _isCheckmarkType = _habit.goalType == 'checkmark';
     _valueController = TextEditingController(text: _formatValue(_currentValue));
   }
 
@@ -37,7 +42,7 @@ class _QuickLogBottomSheetState extends State<QuickLogBottomSheet> {
 
   // Uses our smart adaptive step sizing rule
   double _getStepSize() {
-    String type = widget.habit['goalType'];
+    final type = _habit.goalType;
     if (type == 'liters') return 0.5;
     if (type == 'time') return 5.0;
 
@@ -70,6 +75,35 @@ class _QuickLogBottomSheetState extends State<QuickLogBottomSheet> {
     });
   }
 
+  Future<void> _openEditHabitBottomSheet() async {
+    final updatedHabit = await showCupertinoModalPopup<QuickLogHabit>(
+      context: context,
+      useRootNavigator: true,
+      barrierColor: Colors.black.withValues(alpha: 0.3),
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.88,
+          decoration: const BoxDecoration(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: EditHabitScreen(
+            habit: _habit.copyWith(currentValue: _currentValue),
+          ),
+        );
+      },
+    );
+
+    if (updatedHabit == null) return;
+
+    setState(() {
+      _habit = updatedHabit;
+      _isCheckmarkType = updatedHabit.goalType == 'checkmark';
+    });
+
+    await widget.onEditHabit?.call(updatedHabit);
+  }
+
   @override
   void dispose() {
     _valueController.dispose();
@@ -79,13 +113,15 @@ class _QuickLogBottomSheetState extends State<QuickLogBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final Color themeColor = widget.habit['color'];
-    final String unit = widget.habit['unit'] ?? '';
+    final Color themeColor = _habit.color;
+    final String unit = _habit.unit;
     final bool isCompleted = _currentValue >= 1.0;
     final mq = MediaQuery.of(context);
+    final double targetValue = _habit.targetValue;
 
         // Progress calculation safely clamped between 0.0 and 1.0
-    final double progressPct = widget.habit['targetValue'] > 0 ? (_currentValue / widget.habit['targetValue']).clamp(0.0, 1.0) : 0.0;
+    final double progressPct =
+        targetValue > 0 ? (_currentValue / targetValue).clamp(0.0, 1.0) : 0.0;
 
     return Container(
       padding: EdgeInsets.only(
@@ -118,20 +154,20 @@ class _QuickLogBottomSheetState extends State<QuickLogBottomSheet> {
           // Header Profile Info row
           Row(
             children: [
-              Text(widget.habit['emoji'], style: const TextStyle(fontSize: 28)),
+              Text(_habit.emoji, style: const TextStyle(fontSize: 28)),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.habit['title'],
+                      _habit.title,
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     Text(
                       _isCheckmarkType
                           ? (isCompleted ? "Status: Done today!" : "Status: Pending")
-                          : "Target: ${_formatValue(widget.habit['targetValue'])} $unit",
+                          : "Target: ${_formatValue(targetValue)} $unit",
                       style: const TextStyle(fontSize: 13, color: CupertinoColors.secondaryLabel),
                     ),
                   ],
@@ -141,7 +177,7 @@ class _QuickLogBottomSheetState extends State<QuickLogBottomSheet> {
               // 1. EDIT ACTION ICON BUTTON
               CupertinoButton(
                 padding: const EdgeInsets.symmetric(horizontal: 6),
-                onPressed: () => {},
+                onPressed: _openEditHabitBottomSheet,
                 child: Icon(
                   CupertinoIcons.pencil_circle_fill,
                   color: themeColor,

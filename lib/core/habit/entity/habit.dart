@@ -34,6 +34,9 @@ class HabitModel extends HiveObject {
   @HiveField(8)
   final List<bool> activeDays; // [Mon, Tue, Wed, Thu, Fri, Sat, Sun]
 
+  @HiveField(9)
+  final String frequency; // 'Daily' or 'Weekly'
+
   HabitModel({
     required this.id,
     required this.title,
@@ -44,6 +47,7 @@ class HabitModel extends HiveObject {
     required this.targetValue,
     required this.timeText,
     required this.activeDays,
+    this.frequency = 'Daily',
   });
 
   // --- HELPER UTILITIES ---
@@ -60,6 +64,7 @@ class HabitModel extends HiveObject {
     double? targetValue,
     String? timeText,
     List<bool>? activeDays,
+    String? frequency,
   }) {
     return HabitModel(
       id: id ?? this.id,
@@ -71,6 +76,7 @@ class HabitModel extends HiveObject {
       targetValue: targetValue ?? this.targetValue,
       timeText: timeText ?? this.timeText,
       activeDays: activeDays ?? this.activeDays,
+      frequency: frequency ?? this.frequency,
     );
   }
 
@@ -86,6 +92,7 @@ class HabitModel extends HiveObject {
       targetValue: (map['targetValue'] as num).toDouble(),
       timeText: map['timeText'] as String,
       activeDays: List<bool>.from(map['activeDays'] ?? List.filled(7, true)),
+      frequency: (map['frequency'] as String?) ?? 'Daily',
     );
   }
 
@@ -100,6 +107,7 @@ class HabitModel extends HiveObject {
       'targetValue': targetValue,
       'timeText': timeText,
       'activeDays': activeDays,
+      'frequency': frequency,
     };
   }
 }

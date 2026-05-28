@@ -3,7 +3,16 @@ import 'package:flutter/material.dart';
 import '../../../../shared/emoji.dart';
 
 class CreateHabitScreen extends StatefulWidget {
-  const CreateHabitScreen({super.key});
+  const CreateHabitScreen({
+    super.key,
+    this.initialHabit,
+    this.onSaveHabit,
+    this.title = 'New Habit',
+  });
+
+  final Map<String, dynamic>? initialHabit;
+  final ValueChanged<Map<String, dynamic>>? onSaveHabit;
+  final String title;
 
   @override
   State<CreateHabitScreen> createState() => _CreateHabitScreenState();
@@ -50,11 +59,74 @@ class _CreateHabitScreenState extends State<CreateHabitScreen> {
     '❤️', '🏋️‍♂️', '📚', '🛌', '💧', '🧘', '⏱️'
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _initializeFromInitialHabit();
+  }
+
   // Helper calculation to determine smart incremental sizing for counts
   int _getCountStepSize(int currentCount) {
     if (currentCount < 20) return 1;    // Small habits (e.g., 3 books, 8 glasses of water)
     if (currentCount < 100) return 5;   // Medium habits (e.g., 25 pushups, 50 pages)
     return 10;                          // Large targets (e.g., 150 squats, 500 calories)
+  }
+
+  HabitGoalType _goalTypeFromString(String? raw) {
+    switch (raw) {
+      case 'time':
+        return HabitGoalType.time;
+      case 'liters':
+        return HabitGoalType.liters;
+      case 'count':
+      case 'quantity':
+      case 'distance':
+      case 'pages':
+        return HabitGoalType.count;
+      case 'checkmark':
+      default:
+        return HabitGoalType.checkmark;
+    }
+  }
+
+  void _initializeFromInitialHabit() {
+    final initial = widget.initialHabit;
+    if (initial == null) return;
+
+    _titleController.text = (initial['title'] ?? '').toString();
+    _notesController.text = (initial['notes'] ?? '').toString();
+    _selectedEmoji = (initial['emoji'] ?? _selectedEmoji).toString();
+    _selectedFrequency = (initial['frequency'] ?? _selectedFrequency).toString();
+    _selectedGoalType = _goalTypeFromString(initial['goalType']?.toString());
+
+    final colorRaw = initial['color'];
+    if (colorRaw is int) {
+      _selectedColor = Color(colorRaw);
+    } else if (colorRaw is Color) {
+      _selectedColor = colorRaw;
+    } else {
+      final colorValue = initial['colorValue'];
+      if (colorValue is int) {
+        _selectedColor = Color(colorValue);
+      }
+    }
+
+    final activeDaysRaw = initial['activeDays'];
+    if (activeDaysRaw is List && activeDaysRaw.length == 7) {
+      final parsed = activeDaysRaw.map((e) => e == true).toList();
+      for (var i = 0; i < 7; i++) {
+        _activeDays[i] = parsed[i];
+      }
+    }
+
+    final target = (initial['targetValue'] as num?)?.toDouble() ?? 0.0;
+    if (_selectedGoalType == HabitGoalType.time) {
+      _selectedMinutes = target.round().clamp(5, 1440);
+    } else if (_selectedGoalType == HabitGoalType.liters) {
+      _selectedLiters = target > 0 ? target : 0.5;
+    } else if (_selectedGoalType == HabitGoalType.count) {
+      _selectedCount = target.round() > 0 ? target.round() : 1;
+    }
   }
 
   void _showEmojiSearchModal() {
@@ -130,18 +202,22 @@ class _CreateHabitScreenState extends State<CreateHabitScreen> {
     }
 
     final Map<String, dynamic> newHabit = {
+      'id': widget.initialHabit?['id'],
       'title': _titleController.text.trim(),
       'color': _selectedColor.value,
+      'colorValue': _selectedColor.value,
       'emoji': _selectedEmoji,
       'frequency': _selectedFrequency,
-      'activeDays': _activeDays,
+      'activeDays': List<bool>.from(_activeDays),
       'goalType': _selectedGoalType.name,
       'targetValue': targetValue,
       'notes': _notesController.text.trim(),
+      'unit': widget.initialHabit?['unit'],
+      'timeText': widget.initialHabit?['timeText'],
     };
 
-    debugPrint('Saving Custom Habit: $newHabit');
-    Navigator.of(context).pop();
+    widget.onSaveHabit?.call(newHabit);
+    Navigator.of(context).pop(newHabit);
   }
 
   @override
@@ -153,7 +229,7 @@ class _CreateHabitScreenState extends State<CreateHabitScreen> {
       backgroundColor: iosBackground,
       appBar: CupertinoNavigationBar(
         backgroundColor: iosBackground.withOpacity(0.8),
-        middle: const Text('New Habit', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17)),
+        middle: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 17)),
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
           child: const Text('Cancel', style: TextStyle(color: CupertinoColors.systemBlue, fontSize: 17)),
