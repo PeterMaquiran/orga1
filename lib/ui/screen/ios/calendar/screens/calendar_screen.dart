@@ -6,7 +6,6 @@ import 'package:orga1/ui/shared/menu-achor.dart';
 
 import '../../../../shared/appbar.dart';
 import '../../../../shared/navigationBar.dart';
-import '../../home/component/habit_list.dart';
 import '../component/create-event.dart';
 import '../models/calendar_view_mode.dart';
 import '../widgets/orga_week_month_calendar.dart';

@@ -1,30 +1,132 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:orga1/ui/screen/ios/calendar/screens/calendar_screen.dart';
 import 'package:orga1/ui/shared/menu-achor.dart';
+
 import '../../calendar/logic/calendar_date_utils.dart';
-import '../../calendar/widgets/weekday_header_row.dart';
+import '../models/home_view_mode.dart';
 import 'create-habit.dart';
 
-class InfiniteWeeklyCalendar extends StatelessWidget {
-  const InfiniteWeeklyCalendar({super.key});
+class InfiniteWeeklyCalendar extends StatefulWidget {
+  const InfiniteWeeklyCalendar({
+    super.key,
+    required this.viewMode,
+    required this.onViewModeChanged,
+    required this.focusDate,
+    required this.onFocusDateChanged,
+  });
 
+  final HomeViewMode viewMode;
+  final ValueChanged<HomeViewMode> onViewModeChanged;
+  final DateTime focusDate;
+  final ValueChanged<DateTime> onFocusDateChanged;
+
+  @override
+  State<InfiniteWeeklyCalendar> createState() => _InfiniteWeeklyCalendarState();
+}
+
+class _InfiniteWeeklyCalendarState extends State<InfiniteWeeklyCalendar> {
   static const int _virtualCenter = 10000;
 
-  List<DateTime> _getWeekForIndex(int index, DateTime today) {
-    final int weekOffset = index - _virtualCenter;
-    final DateTime firstDayOfWeek = today.subtract(Duration(days: today.weekday - 1));
-    final DateTime startOfTargetWeek = firstDayOfWeek.add(Duration(days: weekOffset * 7));
-    return List.generate(7, (i) => startOfTargetWeek.add(Duration(days: i)));
+  late final PageController _pageController;
+  late final ValueNotifier<DateTime> _headerDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _virtualCenter);
+    _headerDate = ValueNotifier(widget.focusDate);
+  }
+
+  @override
+  void didUpdateWidget(InfiniteWeeklyCalendar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_sameDay(oldWidget.focusDate, widget.focusDate)) {
+      _headerDate.value = widget.focusDate;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _headerDate.dispose();
+    super.dispose();
+  }
+
+  bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  DateTime _normalize(DateTime date) =>
+      DateTime(date.year, date.month, date.day);
+
+  /// Rolling window: 6 days of history on the left, anchor day on the right.
+  List<DateTime> _getRollingWindowForIndex(int index, DateTime today) {
+    final todayNorm = _normalize(today);
+    final pageOffset = index - _virtualCenter;
+    var anchor = todayNorm.add(Duration(days: pageOffset * 7));
+    if (anchor.isAfter(todayNorm)) {
+      anchor = todayNorm;
+    }
+    final start = anchor.subtract(const Duration(days: 6));
+    return List.generate(7, (i) => start.add(Duration(days: i)));
+  }
+
+  void _onWeekPageChanged(int index, DateTime today) {
+    if (index > _virtualCenter) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_pageController.hasClients) {
+          _pageController.jumpToPage(_virtualCenter);
+        }
+      });
+      return;
+    }
+
+    final window = _getRollingWindowForIndex(index, today);
+    final anchor = window.last;
+    final focus = window.any((d) => _sameDay(d, widget.focusDate))
+        ? widget.focusDate
+        : anchor;
+    _headerDate.value = focus;
+    widget.onFocusDateChanged(focus);
+  }
+
+  Widget _buildRollingWeekdayHeader(
+    BuildContext context,
+    List<DateTime> days,
+    DateTime todayDay,
+  ) {
+    final active = CupertinoColors.activeBlue.resolveFrom(context);
+    final tertiary = CupertinoColors.tertiaryLabel.resolveFrom(context);
+    const labels = OrgaCalendarDateUtils.weekdayLabels;
+
+    return SizedBox(
+      height: 40,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: days.map((date) {
+          final isToday = _sameDay(date, todayDay);
+          return SizedBox(
+            width: OrgaCalendarDateUtils.monthGridRowExtent,
+            child: Text(
+              labels[date.weekday - 1],
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.06,
+                color: isToday ? active : tertiary,
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final DateTime today = DateTime.now();
-    final PageController controller = PageController(initialPage: _virtualCenter);
-    final ValueNotifier<DateTime> focusedDate = ValueNotifier(_getWeekForIndex(_virtualCenter, today).last);
-    final Color iconColor = CupertinoColors.secondaryLabel.resolveFrom(context);
-    final todayColumn = OrgaCalendarDateUtils.weekdayColumnIndex(today);
+    final today = DateTime.now();
+    final todayDay = _normalize(today);
+    final iconColor = CupertinoColors.secondaryLabel.resolveFrom(context);
 
     return Column(
       children: [
@@ -33,35 +135,27 @@ class InfiniteWeeklyCalendar extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              StatsMenuButton(
-                selectedValue: "",
-                onSelected: (value) {
-                  print(value);
-                },
+              StatsMenuButton<HomeViewMode>(
+                selectedValue: widget.viewMode,
+                onSelected: widget.onViewModeChanged,
                 icon: CupertinoIcons.square_grid_2x2,
                 items: [
                   StatsMenuItem(
-                    value: "null1",
-                    label: 'Today',
-                    onPressed: () => const {},
+                    value: HomeViewMode.day,
+                    label: HomeViewMode.day.menuLabel,
                   ),
                   StatsMenuItem(
-                    value: "null2",
-                    label: 'Week',
-                    onPressed: () {},
-                  ),
-                  StatsMenuItem(
-                    value: "null3",
-                    label: 'Month',
-                    onPressed: () {},
+                    value: HomeViewMode.week,
+                    label: HomeViewMode.week.menuLabel,
                   ),
                 ],
               ),
               ValueListenableBuilder<DateTime>(
-                valueListenable: focusedDate,
+                valueListenable: _headerDate,
                 builder: (context, date, _) {
-                  final String yearStr = date.year != today.year ? ', ${date.year}' : '';
-                  final String month = [
+                  final yearStr =
+                      date.year != today.year ? ', ${date.year}' : '';
+                  const months = [
                     'Jan',
                     'Feb',
                     'Mar',
@@ -74,9 +168,13 @@ class InfiniteWeeklyCalendar extends StatelessWidget {
                     'Oct',
                     'Nov',
                     'Dec',
-                  ][date.month - 1];
+                  ];
+                  final month = months[date.month - 1];
+                  final label = _sameDay(date, todayDay)
+                      ? 'Today'
+                      : '$month ${date.day}$yearStr';
                   return Text(
-                    '$month ${date.day}$yearStr',
+                    label,
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 17,
@@ -138,25 +236,30 @@ class InfiniteWeeklyCalendar extends StatelessWidget {
             ],
           ),
         ),
-        WeekdayHeaderRow(
-          highlightedColumnIndex: todayColumn,
-          topPadding: 0,
-          letterSpacing: 0.06,
-        ),
         SizedBox(
-          height: 35,
+          height: 79,
           child: PageView.builder(
-            controller: controller,
-            onPageChanged: (i) => focusedDate.value = _getWeekForIndex(i, today).last,
+            controller: _pageController,
+            onPageChanged: (i) => _onWeekPageChanged(i, today),
             itemBuilder: (context, index) {
-              final week = _getWeekForIndex(index, today);
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: week.map((date) {
-                  final isToday =
-                      date.day == today.day && date.month == today.month && date.year == today.year;
-                  return _buildDayCard(context, date, isToday);
-                }).toList(),
+              final window = _getRollingWindowForIndex(index, today);
+              return Column(
+                children: [
+                  _buildRollingWeekdayHeader(context, window, todayDay),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: window.map((date) {
+                      final isToday = _sameDay(date, todayDay);
+                      final isSelected = _sameDay(date, widget.focusDate);
+                      return _buildDayCard(
+                        context,
+                        date,
+                        isToday: isToday,
+                        isSelected: isSelected,
+                      );
+                    }).toList(),
+                  ),
+                ],
               );
             },
           ),
@@ -165,46 +268,58 @@ class InfiniteWeeklyCalendar extends StatelessWidget {
     );
   }
 
-  Widget _buildDayCard(BuildContext context, DateTime date, bool isToday) {
+  Widget _buildDayCard(
+    BuildContext context,
+    DateTime date, {
+    required bool isToday,
+    required bool isSelected,
+  }) {
     final active = CupertinoColors.activeBlue.resolveFrom(context);
     final labelColor = CupertinoColors.label.resolveFrom(context);
 
-    return Container(
-      width: 35,
-      height: 35,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: const Color(0xFF3C3C43).withValues(alpha: 0.12),
-          width: 1,
-        ),
-        color: isToday
-            ? active.withValues(alpha: 0.05)
-            : CupertinoColors.systemBackground.resolveFrom(context),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            date.day.toString(),
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              letterSpacing: -0.08,
-              color: isToday ? active : labelColor,
-            ),
+    return GestureDetector(
+      onTap: () {
+        final normalized = _normalize(date);
+        _headerDate.value = normalized;
+        widget.onFocusDateChanged(normalized);
+      },
+      child: Container(
+        width: 35,
+        height: 35,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isSelected
+                ? active
+                : const Color(0xFF3C3C43).withValues(alpha: 0.12),
+            width: isSelected ? 1.5 : 1,
           ),
-        ],
+          color: isToday
+              ? active.withValues(alpha: 0.05)
+              : CupertinoColors.systemBackground.resolveFrom(context),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              date.day.toString(),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.08,
+                color: isToday || isSelected ? active : labelColor,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-
-  // Premium iOS Bottom Sheet Modal Invocation
   void _showCreateHabitModal(BuildContext context) {
     showCupertinoModalPopup(
       context: context,
-      useRootNavigator: true, // <-- CRITICAL: Layers modal cleanly over navigation text layers!
+      useRootNavigator: true,
       barrierColor: Colors.black.withValues(alpha: 0.3),
       builder: (BuildContext context) {
         return Container(
@@ -219,5 +334,3 @@ class InfiniteWeeklyCalendar extends StatelessWidget {
     );
   }
 }
-
-

@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:orga1/core/habit/data/seed.dart';
 import 'package:orga1/ui/screen/ios/auth/email_confirmation.dart';
 import 'package:orga1/ui/screen/ios/auth/login.dart';
 import 'package:orga1/ui/screen/ios/boards/boards_screen.dart';
@@ -35,7 +37,16 @@ final GoRouter _router = GoRouter(
   ],
 );
 
-void main() {
+Future<void> main() async {
+  // 1. Initialize local persistent engines
+  await Hive.initFlutter();
+
+  // 2. Open standard map containers
+  final habitBox = await Hive.openBox('habitsBox');
+  final eventBox = await Hive.openBox('habitEventsBox');
+
+  // 3. RUN SEEDER: Processes your mock data onto disk smoothly
+  await HabitSeeder.seedIfEmpty(habitBox: habitBox, eventBox: eventBox);
   runApp(const OrgaApp());
 }
 
