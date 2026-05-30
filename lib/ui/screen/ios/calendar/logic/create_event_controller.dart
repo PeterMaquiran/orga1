@@ -8,13 +8,22 @@ import 'calendar_event_repository.dart';
 import 'create_event_formatters.dart';
 
 class CreateEventController extends ChangeNotifier {
-  CreateEventController({CalendarEventRepository? repository})
-      : _repository = repository ?? CalendarEventRepository() {
-    _repeatUntilDate = _defaultRepeatUntil(_startDate, _repeatInterval);
-    addNewTaskRow();
+  CreateEventController({
+    CalendarEventRepository? repository,
+    StoredCalendarEvent? initialEvent,
+  }) : _repository = repository ?? CalendarEventRepository() {
+    if (initialEvent != null) {
+      _loadFromEvent(initialEvent);
+    } else {
+      _repeatUntilDate = _defaultRepeatUntil(_startDate, _repeatInterval);
+      addNewTaskRow();
+    }
   }
 
   final CalendarEventRepository _repository;
+  String? _editingEventId;
+
+  bool get isEditing => _editingEventId != null;
 
   final subjectController = TextEditingController();
   final bodyController = TextEditingController();
@@ -208,6 +217,66 @@ class CreateEventController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _loadFromEvent(StoredCalendarEvent event) {
+    _editingEventId = event.id;
+    subjectController.text = event.subject;
+    bodyController.text = event.body ?? '';
+    locationController.text = event.location;
+    _startDate = event.startDate;
+    _endDate = event.endDate;
+    _isAllDayEvent = event.isAllDayEvent;
+    _isRecurring = event.isRecurring;
+
+    if (event.isRecurring && event.recurrence != null) {
+      final recurrence = event.recurrence!;
+      _repeatUntilDate = recurrence.until;
+      _repeatInterval = _repeatIntervalFromFrequency(recurrence.frequency);
+      _selectedDaysOfWeekIndices
+        ..clear()
+        ..addAll(recurrence.daysOfWeek);
+
+      if (_repeatInterval == RepeatInterval.week) {
+        _startDate = DateTime(
+          recurrence.startDate.year,
+          recurrence.startDate.month,
+          recurrence.startDate.day,
+          event.startDate.hour,
+          event.startDate.minute,
+        );
+        _endDate = DateTime(
+          recurrence.startDate.year,
+          recurrence.startDate.month,
+          recurrence.startDate.day,
+          event.endDate.hour,
+          event.endDate.minute,
+        );
+      }
+    } else {
+      _repeatUntilDate = _defaultRepeatUntil(_startDate, _repeatInterval);
+    }
+
+    if (event.checklist.isEmpty) {
+      addNewTaskRow();
+    } else {
+      for (final item in event.checklist) {
+        addNewTaskRow(text: item.text);
+        todoList.last.isDone = item.isDone;
+      }
+    }
+    notifyListeners();
+  }
+
+  RepeatInterval _repeatIntervalFromFrequency(int frequency) {
+    switch (frequency) {
+      case EventRecurrenceFrequency.monthly:
+        return RepeatInterval.month;
+      case EventRecurrenceFrequency.yearly:
+        return RepeatInterval.year;
+      default:
+        return RepeatInterval.week;
+    }
+  }
+
   String? validateSubject(String? value) =>
       value == null || value.trim().isEmpty ? 'Title is required' : null;
 
@@ -224,7 +293,7 @@ class CreateEventController extends ChangeNotifier {
   Future<StoredCalendarEvent?> save() async {
     if (!canSubmit()) return null;
 
-    final id = const Uuid().v4();
+    final id = _editingEventId ?? const Uuid().v4();
     final checklist = todoList
         .where((item) => item.controller.text.trim().isNotEmpty)
         .map(

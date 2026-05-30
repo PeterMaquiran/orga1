@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 
 import '../logic/create_event_formatters.dart';
 import '../models/stored_calendar_event.dart';
@@ -9,11 +10,13 @@ class CalendarEventList extends StatelessWidget {
     required this.occurrences,
     required this.loading,
     required this.selectedDay,
+    required this.onEditEvent,
   });
 
   final List<CalendarEventOccurrence> occurrences;
   final bool loading;
   final DateTime selectedDay;
+  final ValueChanged<StoredCalendarEvent> onEditEvent;
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +49,10 @@ class CalendarEventList extends StatelessWidget {
       delegate: SliverChildBuilderDelegate(
         (context, index) {
           final occurrence = occurrences[index];
-          return _CalendarEventTile(occurrence: occurrence);
+          return _CalendarEventTile(
+            occurrence: occurrence,
+            onTap: () => onEditEvent(occurrence.event),
+          );
         },
         childCount: occurrences.length,
       ),
@@ -55,71 +61,93 @@ class CalendarEventList extends StatelessWidget {
 }
 
 class _CalendarEventTile extends StatelessWidget {
-  const _CalendarEventTile({required this.occurrence});
+  const _CalendarEventTile({
+    required this.occurrence,
+    required this.onTap,
+  });
 
   final CalendarEventOccurrence occurrence;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final event = occurrence.event;
     final location = event.location.trim();
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
         color: CupertinoColors.systemBackground.resolveFrom(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFF3C3C43).withValues(alpha: 0.12),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 4,
-            height: 44,
-            margin: const EdgeInsets.only(right: 12, top: 2),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: CupertinoColors.activeBlue,
-              borderRadius: BorderRadius.circular(2),
+              border: Border.all(
+                color: const Color(0xFF3C3C43).withValues(alpha: 0.12),
+              ),
+              borderRadius: BorderRadius.circular(12),
             ),
-          ),
-          Expanded(
-            child: Column(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  event.subject,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.2,
+                Container(
+                  width: 4,
+                  height: 44,
+                  margin: const EdgeInsets.only(right: 12, top: 2),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.activeBlue,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  CreateEventFormatters.formatOccurrenceTime(occurrence),
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        event.subject,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        CreateEventFormatters.formatOccurrenceTime(occurrence),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                        ),
+                      ),
+                      if (location.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          location,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: CupertinoColors.tertiaryLabel.resolveFrom(context),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                if (location.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    location,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: CupertinoColors.tertiaryLabel.resolveFrom(context),
-                    ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 8, top: 2),
+                  child: Icon(
+                    CupertinoIcons.chevron_right,
+                    size: 16,
+                    color: CupertinoColors.tertiaryLabel.resolveFrom(context),
                   ),
-                ],
+                ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

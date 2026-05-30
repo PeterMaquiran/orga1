@@ -143,6 +143,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         occurrences: _controller.selectedDayOccurrences,
                         loading: _controller.loading,
                         selectedDay: selected,
+                        onEditEvent: (event) {
+                          CreateEventBottomSheet.openForEdit(
+                            context,
+                            event: event,
+                            onSaved: _controller.refresh,
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -285,8 +292,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                             height: 44,
                                             child: CupertinoButton(
                                               padding: EdgeInsets.zero,
-                                              onPressed: () =>
-                                                  _showEventHabitModal(context),
+                                              onPressed: () {
+                                                CreateEventBottomSheet.open(
+                                                  context,
+                                                  onSaved: _controller.refresh,
+                                                );
+                                              },
                                               child: Icon(
                                                 CupertinoIcons.add,
                                                 size: 22,
@@ -361,26 +372,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
         ],
       ),
       bottomNavigationBar: const FloatingNavBar(),
-    );
-  }
-
-  void _showEventHabitModal(BuildContext context) {
-    showCupertinoModalPopup(
-      context: context,
-      useRootNavigator: true,
-      barrierColor: Colors.black.withValues(alpha: 0.3),
-      builder: (BuildContext context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.88,
-          decoration: const BoxDecoration(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: CreateEventBottomSheet(
-            onSaved: _controller.refresh,
-          ),
-        );
-      },
     );
   }
 }

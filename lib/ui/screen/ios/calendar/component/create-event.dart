@@ -4,22 +4,45 @@ import 'package:flutter/material.dart';
 import '../logic/create_event_controller.dart';
 import '../logic/create_event_formatters.dart';
 import '../models/create_event_models.dart';
+import '../models/stored_calendar_event.dart';
 
 class CreateEventBottomSheet extends StatefulWidget {
-  const CreateEventBottomSheet({super.key, this.onSaved});
+  const CreateEventBottomSheet({super.key, this.event, this.onSaved});
 
+  final StoredCalendarEvent? event;
   final Future<void> Function()? onSaved;
 
-  static void show(
+  static void open(
     BuildContext context, {
+    StoredCalendarEvent? event,
     Future<void> Function()? onSaved,
   }) {
-    showModalBottomSheet(
+    showCupertinoModalPopup<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => CreateEventBottomSheet(onSaved: onSaved),
+      useRootNavigator: true,
+      barrierColor: Colors.black.withValues(alpha: 0.3),
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.88,
+          decoration: const BoxDecoration(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: CreateEventBottomSheet(
+            event: event,
+            onSaved: onSaved,
+          ),
+        );
+      },
     );
+  }
+
+  static void openForEdit(
+    BuildContext context, {
+    required StoredCalendarEvent event,
+    Future<void> Function()? onSaved,
+  }) {
+    open(context, event: event, onSaved: onSaved);
   }
 
   @override
@@ -34,7 +57,7 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
   @override
   void initState() {
     super.initState();
-    _controller = CreateEventController();
+    _controller = CreateEventController(initialEvent: widget.event);
     _controller.addListener(_onControllerChanged);
   }
 
@@ -108,9 +131,9 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
               ),
               onPressed: () => Navigator.pop(context),
             ),
-            title: const Text(
-              'New Event',
-              style: TextStyle(
+            title: Text(
+              _controller.isEditing ? 'Edit Event' : 'New Event',
+              style: const TextStyle(
                 fontWeight: FontWeight.w600,
                 color: Colors.black,
                 fontSize: 17,
@@ -120,9 +143,9 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
             actions: [
               TextButton(
                 onPressed: _submitData,
-                child: const Text(
-                  'Add',
-                  style: TextStyle(
+                child: Text(
+                  _controller.isEditing ? 'Save' : 'Add',
+                  style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 17,
                     color: CupertinoColors.activeBlue,
