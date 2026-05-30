@@ -371,7 +371,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
           ),
           clipBehavior: Clip.antiAlias,
-          child: const CreateEventScreen(),
+          child: const CreateEventBottomSheet(),
         );
       },
     );

@@ -16,17 +16,7 @@ class HabitModelAdapter extends TypeAdapter<HabitModel> {
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
-    return HabitModel(
-      id: fields[0] as String,
-      title: fields[1] as String,
-      emoji: fields[2] as String,
-      colorValue: fields[3] as int,
-      goalType: fields[4] as String,
-      unit: fields[5] as String,
-      targetValue: fields[6] as double,
-      timeText: fields[7] as String,
-      activeDays: fields[8] as List<bool>,
-    );
+    return HabitModel(id: fields[0] as String, title: fields[1] as String, emoji: fields[2] as String, colorValue: fields[3] as int, goalType: fields[4] as String, unit: fields[5] as String, targetValue: fields[6] as double, timeText: fields[7] as String, activeDays: fields[8] as List<bool>, frequency: fields[9] as String);
   }
 
   @override

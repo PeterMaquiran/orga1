@@ -1,677 +1,560 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import '../../../../shared/emoji.dart';
-import '../../home/component/create-habit.dart'; // Adjust path if necessary
+import 'package:orga1/core/event/entity/entity_day_of_week.dart';
+import 'package:orga1/core/event/entity/entity_event.dart';
+import 'package:orga1/core/event/entity/entity_event_recurrence.dart';
 
-class CreateEventScreen extends StatefulWidget {
-  const CreateEventScreen({super.key});
+class TaskItem {
+  String text;
+  bool isDone;
+  FocusNode focusNode;
+  TextEditingController controller;
 
-  @override
-  State<CreateEventScreen> createState() => _CreateEventScreenState();
+  TaskItem({
+    required this.text, 
+    this.isDone = false, 
+    required this.focusNode,
+    required this.controller,
+  });
 }
 
-enum EventAlertType { none, atTime, mins5, mins15, mins30, hour1, day1 }
+class CreateEventBottomSheet extends StatefulWidget {
+  const CreateEventBottomSheet({Key? super.key});
 
-class _CreateEventScreenState extends State<CreateEventScreen> {
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _locationController = TextEditingController();
-  final TextEditingController _notesController = TextEditingController();
-
-  // Style & Identity Configurations
-  Color _selectedColor = const Color(0xFF007AFF);
-  String _selectedEmoji = '📅';
-
-  // Date & Time States
-  bool _isAllDay = false;
-  DateTime _startDate = DateTime.now().add(const Duration(hours: 1)).subtract(Duration(minutes: DateTime.now().minute));
-  DateTime _endDate = DateTime.now().add(const Duration(hours: 2)).subtract(Duration(minutes: DateTime.now().minute));
-
-  // Configuration States
-  EventAlertType _selectedAlert = EventAlertType.none;
-  String _selectedAvailability = 'Busy';
-
-  final List<Color> _eventColors = [
-    const Color(0xFFFF3B30), // Work / Urgent
-    const Color(0xFFFF9500), // Personal
-    const Color(0xFFFFCC00), // Family
-    const Color(0xFF34C759), // Health / Sport
-    const Color(0xFF00C7BE), // Design
-    const Color(0xFF30B0C7), // Tech
-    const Color(0xFF007AFF), // Default Blue
-    const Color(0xFF5856D6), // Deep Projects
-    const Color(0xFFAF52DE), // Study
-    const Color(0xFFFF2D55), // Entertainment
-    const Color(0xFF636E72), // Sidebar / Casual
-    const Color(0xFF8E8E93), // System / Reminders
-  ];
-
-  final List<String> _quickEmojis = [
-    '📅', '💻', '🏋️‍♂️', '🏥', '🍕', '✈️', '🎓', '💼'
-  ];
-
-  String _getAlertLabel(EventAlertType alert) {
-    switch (alert) {
-      case EventAlertType.none: return 'None';
-      case EventAlertType.atTime: return 'At time of event';
-      case EventAlertType.mins5: return '5 minutes before';
-      case EventAlertType.mins15: return '15 minutes before';
-      case EventAlertType.mins30: return '30 minutes before';
-      case EventAlertType.hour1: return '1 hour before';
-      case EventAlertType.day1: return '1 day before';
-    }
+  static void show(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const CreateEventBottomSheet(),
+    );
   }
 
-  void _showEmojiSearchModal() {
-    showCupertinoModalPopup(
-      context: context,
-      useRootNavigator: true,
-      builder: (BuildContext context) {
-        return EmojiPickerSearchSheet(
-          emojisDictionary: allEmojisDictionary,
-          themeColor: _selectedColor,
-          initialSelectedEmoji: _selectedEmoji,
-          onEmojiSelected: (String chosenEmoji) {
-            setState(() {
-              _selectedEmoji = chosenEmoji;
-              if (!_quickEmojis.contains(chosenEmoji)) {
-                _quickEmojis.insert(0, chosenEmoji);
-              }
+  @override
+  State<CreateEventBottomSheet> createState() => _CreateEventBottomSheetState();
+}
 
-              // Smart Color Hints based on selected Event Emoji context
-              if (chosenEmoji == '💻' || chosenEmoji == '🚀') {
-                _selectedColor = const Color(0xFF30B0C7); // Tech Cyan
-              } else if (chosenEmoji == '🏋️‍♂️' || chosenEmoji == '🏃‍♂️') {
-                _selectedColor = const Color(0xFF34C759); // Health Green
-              } else if (chosenEmoji == '🏥' || chosenEmoji == '🩺') {
-                _selectedColor = const Color(0xFFFF3B30); // Medical Red
-              } else if (chosenEmoji == '💼' || chosenEmoji == '👔') {
-                _selectedColor = const Color(0xFF5856D6); // Work Indigo
-              }
-            });
+class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
+  final _formKey = GlobalKey<FormState>();
+
+  // Text Editing Controllers
+  final _subjectController = TextEditingController();
+  final _bodyController = TextEditingController();
+  final _locationController = TextEditingController();
+
+  // Screen State Properties
+  DateTime _startDate = DateTime.now();
+  DateTime _endDate = DateTime.now().add(const Duration(hours: 1));
+  bool _isRecurring = false;
+  bool _isPrivate = false;
+  bool _isAllDayEvent = false;
+
+  // Recurrence Configuration State
+  int _recurrenceFrequency = 1; 
+  int _recurrenceUnitIndex = 1; // 0: Days, 1: Weeks, 2: Months, 3: Years
+  List<int> _selectedDaysOfWeekIndices = []; 
+
+  final List<String> _recurrenceUnits = ['Day(s)', 'Week(s)', 'Month(s)', 'Year(s)'];
+
+  // --- Dynamic Todo Checklist State ---
+  final List<TaskItem> _todoList = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize with one empty task row by default to invite entry
+    _addNewTaskRow();
+  }
+
+  @override
+  void dispose() {
+    _subjectController.dispose();
+    _bodyController.dispose();
+    _locationController.dispose();
+    for (var item in _todoList) {
+      item.focusNode.dispose();
+      item.controller.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addNewTaskRow({String text = ""}) {
+    final controller = TextEditingController(text: text);
+    final focusNode = FocusNode();
+    
+    setState(() {
+      _todoList.add(
+        TaskItem(text: text, focusNode: focusNode, controller: controller),
+      );
+    });
+
+    // Request focus on the newly created item on the next frame execution
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (focusNode.canRequestFocus) {
+        focusNode.requestFocus();
+      }
+    });
+  }
+
+  // --- Manual Custom Date Formatting Engine ---
+  String _pad(int value) => value.toString().padLeft(2, '0');
+
+  String _formatDateTimeManually(DateTime time, bool dateOnly) {
+    String baseDate = "${time.year}-${_pad(time.month)}-${_pad(time.day)}";
+    if (dateOnly) return baseDate;
+    return "$baseDate ${_pad(time.hour)}:${_pad(time.minute)}";
+  }
+
+  // --- Form submission and Hive Object compilation ---
+  void _submitData() {
+    if (!_formKey.currentState!.validate()) return;
+
+    EventRecurrence? compiledRecurrence;
+    if (_isRecurring) {
+      List<DayOfWeek>? daysList;
+      if (_recurrenceUnitIndex == 1 && _selectedDaysOfWeekIndices.isNotEmpty) {
+        daysList = _selectedDaysOfWeekIndices
+            .map((dayIndex) => DayOfWeek(day: dayIndex))
+            .toList();
+      }
+
+      compiledRecurrence = EventRecurrence(
+        startDate: _startDate,
+        frequency: _recurrenceFrequency,
+        occurrences: 10, 
+        until: _startDate.add(const Duration(days: 90)), 
+        daysOfWeek: daysList,
+      );
+    }
+
+    // Extracting non-empty tasks to clean storage strings/lists
+    final finalTasks = _todoList
+        .where((item) => item.controller.text.trim().isNotEmpty)
+        .map((item) => {"title": item.controller.text.trim(), "done": item.isDone})
+        .toList();
+
+    final newEvent = Event(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      subject: _subjectController.text,
+      body: _bodyController.text.isEmpty ? null : _bodyController.text,
+      location: _locationController.text.isEmpty ? "--" : _locationController.text,
+      startDate: _startDate,
+      endDate: _endDate,
+      isRecurring: _isRecurring,
+      eventRecurrence: compiledRecurrence,
+      hasAttachments: false,
+      isPrivate: _isPrivate,
+      isAllDayEvent: _isAllDayEvent,
+      status: 1, 
+      isOffline: true,
+    );
+
+    // TODO: Map `finalTasks` variable to your custom database field extension 
+    // Hive.box<Event>('events').add(newEvent);
+
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.92,
+      ),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFF2F2F7), 
+          borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+        ),
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            leading: TextButton(
+              child: const Text('Cancel', style: TextStyle(color: Colors.redAccent, fontSize: 17)),
+              onPressed: () => Navigator.pop(context),
+            ),
+            title: const Text('New Event', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.black, fontSize: 17)),
+            centerTitle: true,
+            actions: [
+              TextButton(
+                onPressed: _submitData,
+                child: const Text('Add', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: CupertinoColors.activeBlue)),
+              )
+            ],
+          ),
+          body: Form(
+            key: _formKey,
+            child: ListView(
+              padding: EdgeInsets.only(left: 16, right: 16, bottom: bottomInset + 32),
+              children: [
+                // Section 1: Core Details
+                _buildIOSGroup([
+                  TextFormField(
+                    controller: _subjectController,
+                    style: const TextStyle(fontSize: 17),
+                    decoration: const InputDecoration(hintText: 'Title', border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12)),
+                    validator: (val) => val == null || val.isEmpty ? 'Title is required' : null,
+                  ),
+                  const Divider(height: 1, indent: 16),
+                  TextFormField(
+                    controller: _locationController,
+                    style: const TextStyle(fontSize: 17),
+                    decoration: const InputDecoration(hintText: 'Location', border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12)),
+                  ),
+                ]),
+
+                const SizedBox(height: 22),
+
+                // Section 2: Time configurations
+                _buildIOSGroup([
+                  _buildSwitchRow('All-day', _isAllDayEvent, (val) => setState(() => _isAllDayEvent = val)),
+                  const Divider(height: 1, indent: 16),
+                  _buildDatePickerRow('Starts', _startDate, (date) => setState(() => _startDate = date)),
+                  const Divider(height: 1, indent: 16),
+                  _buildDatePickerRow('Ends', _endDate, (date) => setState(() => _endDate = date)),
+                ]),
+
+                const SizedBox(height: 22),
+
+                // Section 3: Recurrence Picker Hooks
+                _buildIOSGroup([
+                  _buildSwitchRow('Repeat', _isRecurring, (val) => setState(() => _isRecurring = val)),
+                  if (_isRecurring) ...[
+                    const Divider(height: 1, indent: 16),
+                    ListTile(
+                      title: const Text('Interval Settings', style: TextStyle(fontSize: 17)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            "Every $_recurrenceFrequency ${_recurrenceUnits[_recurrenceUnitIndex].toLowerCase()}",
+                            style: const TextStyle(color: CupertinoColors.inactiveGray, fontSize: 16),
+                          ),
+                          const Icon(Icons.chevron_right, color: CupertinoColors.inactiveGray, size: 22),
+                        ],
+                      ),
+                      onTap: () => _openIOSRecurrencePicker(),
+                    ),
+                    if (_recurrenceUnitIndex == 1) ...[
+                      const Divider(height: 1, indent: 16),
+                      _buildDayOfWeekSelector(),
+                    ]
+                  ],
+                  const Divider(height: 1, indent: 16),
+                  _buildSwitchRow('Private Event', _isPrivate, (val) => setState(() => _isPrivate = val)),
+                ]),
+
+                const SizedBox(height: 22),
+
+                // Section 4: Secondary Descriptions
+                _buildIOSGroup([
+                  TextFormField(
+                    controller: _bodyController,
+                    maxLines: 3,
+                    style: const TextStyle(fontSize: 16),
+                    decoration: const InputDecoration(
+                      hintText: 'Notes',
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                ]),
+
+                const SizedBox(height: 22),
+
+                // Section 5: Premium iOS Style Todo Checklist Group
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(left: 12.0, bottom: 8.0),
+                      child: Text("CHECKLIST", style: TextStyle(fontSize: 12, color: CupertinoColors.secondaryLabel, fontWeight: FontWeight.w600, letterSpacing: 0.3)),
+                    ),
+                    _buildIOSGroup([
+                      ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _todoList.length,
+                        itemBuilder: (context, index) {
+                          final item = _todoList[index];
+                          return Column(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                child: Row(
+                                  children: [
+                                    // iOS Clean Circular Checkbox Ring
+                                    GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          item.isDone = !item.isDone;
+                                        });
+                                      },
+                                      child: Container(
+                                        margin: const EdgeInsets.only(right: 12),
+                                        width: 22,
+                                        height: 22,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: item.isDone ? CupertinoColors.activeBlue : CupertinoColors.systemGrey3,
+                                            width: 2,
+                                          ),
+                                          color: item.isDone ? CupertinoColors.activeBlue : Colors.transparent,
+                                        ),
+                                        child: item.isDone
+                                            ? const Icon(Icons.check, size: 14, color: Colors.white)
+                                            : null,
+                                      ),
+                                    ),
+                                    // Expandable Input Area
+                                    Expanded(
+                                      child: TextField(
+                                        controller: item.controller,
+                                        focusNode: item.focusNode,
+                                        textInputAction: TextInputAction.next,
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: item.isDone ? CupertinoColors.secondaryLabel : Colors.black,
+                                          decoration: item.isDone ? TextDecoration.lineThrough : TextDecoration.none,
+                                        ),
+                                        decoration: const InputDecoration(
+                                          hintText: 'Add item...',
+                                          border: InputBorder.none,
+                                          isDense: true,
+                                          contentPadding: EdgeInsets.symmetric(vertical: 8),
+                                        ),
+                                        onSubmitted: (_) {
+                                          // Auto-generate a new row when tapping "Next/Return" on keyboard
+                                          if (index == _todoList.length - 1 && item.controller.text.isNotEmpty) {
+                                            _addNewTaskRow();
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                    // Delete Task Row Button
+                                    if (_todoList.length > 1)
+                                      IconButton(
+                                        icon: const Icon(CupertinoIcons.minus_circle_fill, color: Colors.redAccent, size: 20),
+                                        onPressed: () {
+                                          setState(() {
+                                            _todoList.removeAt(index);
+                                          });
+                                        },
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              if (index < _todoList.length - 1)
+                                const Divider(height: 1, indent: 46),
+                            ],
+                          );
+                        },
+                      ),
+                    ]),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- Core iOS/Google Calendar Wheel Modal Implementation ---
+  void _openIOSRecurrencePicker() {
+    int tempFrequency = _recurrenceFrequency;
+    int tempUnitIndex = _recurrenceUnitIndex;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.4,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF2F2F7),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Cancel', style: TextStyle(color: Colors.redAccent, fontSize: 16)),
+                        ),
+                        const Text('Custom Repeat', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _recurrenceFrequency = tempFrequency;
+                              _recurrenceUnitIndex = tempUnitIndex;
+                            });
+                            Navigator.pop(context);
+                          },
+                          child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: CupertinoColors.activeBlue)),
+                        )
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    child: Text(
+                      "Repeats every $tempFrequency ${_recurrenceUnits[tempUnitIndex].toLowerCase()}",
+                      style: const TextStyle(fontSize: 16, color: Colors.black54, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                  Expanded(
+                    child: Container(
+                      color: Colors.white,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: CupertinoPicker(
+                              scrollController: FixedExtentScrollController(initialItem: tempFrequency - 1),
+                              itemExtent: 38,
+                              onSelectedItemChanged: (index) => setModalState(() => tempFrequency = index + 1),
+                              children: List.generate(30, (index) => Center(
+                                child: Text('${index + 1}', style: const TextStyle(fontSize: 21)),
+                              )),
+                            ),
+                          ),
+                          Expanded(
+                            child: CupertinoPicker(
+                              scrollController: FixedExtentScrollController(initialItem: tempUnitIndex),
+                              itemExtent: 38,
+                              onSelectedItemChanged: (index) => setModalState(() => tempUnitIndex = index),
+                              children: _recurrenceUnits.map((unit) => Center(
+                                child: Text(unit, style: const TextStyle(fontSize: 21)),
+                              )).toList(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
           },
         );
       },
     );
   }
 
-  void _showDatePickerModal(bool isStartDate) {
-    showCupertinoModalPopup(
-      context: context,
-      builder: (context) => Container(
-        height: 300,
-        color: CupertinoColors.systemBackground.resolveFrom(context),
-        child: Column(
-          children: [
-            Container(
-              color: CupertinoColors.secondarySystemBackground.resolveFrom(context),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  CupertinoButton(
-                    child: const Text('Cancel'),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  CupertinoButton(
-                    child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold)),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
+  // --- UI Layout Helper Modifiers ---
+  Widget _buildIOSGroup(List<Widget> children) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(children: children),
+    );
+  }
+
+  Widget _buildSwitchRow(String title, bool value, ValueChanged<bool> onChanged) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w400)),
+          CupertinoSwitch(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDatePickerRow(String title, DateTime currentTime, Function(DateTime) onDateTimeChanged) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      title: Text(title, style: const TextStyle(fontSize: 17)),
+      trailing: Text(
+        _formatDateTimeManually(currentTime, _isAllDayEvent),
+        style: const TextStyle(color: CupertinoColors.activeBlue, fontSize: 17),
+      ),
+      onTap: () {
+        showCupertinoModalPopup(
+          context: context,
+          builder: (BuildContext context) => Container(
+            height: 240,
+            color: Colors.white,
+            padding: const EdgeInsets.only(top: 6),
+            child: SafeArea(
+              top: false,
+              child: CupertinoDatePicker(
+                mode: _isAllDayEvent ? CupertinoDatePickerMode.date : CupertinoDatePickerMode.dateAndTime,
+                initialDateTime: currentTime,
+                onDateTimeChanged: onDateTimeChanged,
               ),
             ),
-            Expanded(
-              child: CupertinoDatePicker(
-                mode: _isAllDay ? CupertinoDatePickerMode.date : CupertinoDatePickerMode.dateAndTime,
-                initialDateTime: isStartDate ? _startDate : _endDate,
-                use24hFormat: true,
-                onDateTimeChanged: (DateTime newDate) {
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDayOfWeekSelector() {
+    final List<String> weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(left: 8.0, bottom: 8.0),
+            child: Text("REPEATS ON", style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600)),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: List.generate(7, (index) {
+              final isSelected = _selectedDaysOfWeekIndices.contains(index);
+              return GestureDetector(
+                onTap: () {
                   setState(() {
-                    if (isStartDate) {
-                      _startDate = newDate;
-                      if (_endDate.isBefore(_startDate)) {
-                        _endDate = _startDate.add(const Duration(hours: 1));
-                      }
+                    if (isSelected) {
+                      _selectedDaysOfWeekIndices.remove(index);
                     } else {
-                      _endDate = newDate;
-                      if (_endDate.isBefore(_startDate)) {
-                        _startDate = _endDate.subtract(const Duration(hours: 1));
-                      }
+                      _selectedDaysOfWeekIndices.add(index);
                     }
                   });
                 },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showAlertSelector() {
-    showCupertinoModalPopup(
-      context: context,
-      builder: (context) => CupertinoActionSheet(
-        title: const Text('Select Event Alert'),
-        actions: EventAlertType.values.map((type) {
-          return CupertinoActionSheetAction(
-            child: Text(_getAlertLabel(type)),
-            onPressed: () {
-              setState(() => _selectedAlert = type);
-              Navigator.pop(context);
-            },
-          );
-        }).toList(),
-        cancelButton: CupertinoActionSheetAction(
-          isDefaultAction: true,
-          child: const Text('Cancel'),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _locationController.dispose();
-    _notesController.dispose();
-    super.dispose();
-  }
-
-  void _submitEvent() {
-    if (_titleController.text.trim().isEmpty) {
-      showCupertinoDialog(
-        context: context,
-        builder: (context) => CupertinoAlertDialog(
-          title: const Text('Title Required'),
-          content: const Text('Please provide a title or summary description for this agenda item.'),
-          actions: [
-            CupertinoDialogAction(
-              child: const Text('OK'),
-              onPressed: () => Navigator.pop(context),
-            )
-          ],
-        ),
-      );
-      return;
-    }
-
-    final Map<String, dynamic> newEvent = {
-      'title': _titleController.text.trim(),
-      'location': _locationController.text.trim(),
-      'color': _selectedColor.value,
-      'emoji': _selectedEmoji,
-      'isAllDay': _isAllDay,
-      'startTimestamp': _startDate.toIso8601String(),
-      'endTimestamp': _endDate.toIso8601String(),
-      'alertType': _selectedAlert.name,
-      'availability': _selectedAvailability,
-      'notes': _notesController.text.trim(),
-    };
-
-    debugPrint('Saving Agenda Event: $newEvent');
-    Navigator.of(context).pop(newEvent);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    const Color iosBackground = Color(0xFFF2F2F7);
-    const Color iosCardBackground = CupertinoColors.white;
-
-    return Scaffold(
-      backgroundColor: iosBackground,
-      appBar: CupertinoNavigationBar(
-        backgroundColor: iosBackground.withOpacity(0.8),
-        middle: const Text('New Event', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17)),
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          child: const Text('Cancel', style: TextStyle(color: CupertinoColors.systemBlue, fontSize: 17)),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          child: const Text('Add', style: TextStyle(color: CupertinoColors.systemBlue, fontWeight: FontWeight.bold, fontSize: 17)),
-          onPressed: _submitEvent,
-        ),
-      ),
-      body: SafeArea(
-        child: GestureDetector(
-          onTap: () => FocusScope.of(context).unfocus(),
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-            children: [
-
-              // IDENTITY CARD (Title, Location, Color & Emoji)
-              Container(
-                decoration: BoxDecoration(
-                  color: iosCardBackground,
-                  borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isSelected ? CupertinoColors.activeBlue : const Color(0xFFE5E5EA),
+                  ),
+                  child: Center(
+                    child: Text(
+                      weekdays[index],
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
                 ),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    CupertinoTextField(
-                      controller: _titleController,
-                      placeholder: 'Title',
-                      placeholderStyle: const TextStyle(color: CupertinoColors.placeholderText),
-                      decoration: const BoxDecoration(color: Colors.transparent),
-                      clearButtonMode: OverlayVisibilityMode.editing,
-                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w400),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 10),
-                      child: Divider(height: 0.5, color: CupertinoColors.separator),
-                    ),
-                    CupertinoTextField(
-                      controller: _locationController,
-                      placeholder: 'Location or Video Call link',
-                      placeholderStyle: const TextStyle(color: CupertinoColors.placeholderText),
-                      decoration: const BoxDecoration(color: Colors.transparent),
-                      clearButtonMode: OverlayVisibilityMode.editing,
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Divider(height: 0.5, color: CupertinoColors.separator),
-                    ),
-
-                    _buildSubLabel('Calendar Display Tag Color'),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 36,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _eventColors.length,
-                        itemBuilder: (context, index) {
-                          final color = _eventColors[index];
-                          final isSelected = _selectedColor == color;
-                          return GestureDetector(
-                            onTap: () => setState(() => _selectedColor = color),
-                            child: Container(
-                              margin: const EdgeInsets.only(right: 14),
-                              width: 34,
-                              decoration: BoxDecoration(
-                                color: color,
-                                shape: BoxShape.circle,
-                              ),
-                              child: isSelected
-                                  ? const Icon(CupertinoIcons.checkmark, color: Colors.white, size: 16)
-                                  : null,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Divider(height: 0.5, color: CupertinoColors.separator),
-                    ),
-
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildSubLabel('Event Visual Identifier'),
-                        CupertinoButton(
-                          padding: EdgeInsets.zero,
-                          minSize: 24,
-                          onPressed: _showEmojiSearchModal,
-                          child: Row(
-                            children: [
-                              Text(
-                                'Browse',
-                                style: TextStyle(fontSize: 14, color: _selectedColor, fontWeight: FontWeight.w500),
-                              ),
-                              const SizedBox(width: 4),
-                              Icon(CupertinoIcons.search, size: 16, color: _selectedColor),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      height: 44,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _quickEmojis.length,
-                        itemBuilder: (context, index) {
-                          final emoji = _quickEmojis[index];
-                          final isSelected = _selectedEmoji == emoji;
-                          return GestureDetector(
-                            onTap: () => setState(() => _selectedEmoji = emoji),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              margin: const EdgeInsets.only(right: 12),
-                              width: 44,
-                              decoration: BoxDecoration(
-                                color: isSelected ? _selectedColor.withOpacity(0.12) : const Color(0xFFF2F2F7),
-                                borderRadius: BorderRadius.circular(10),
-                                border: isSelected ? Border.all(color: _selectedColor, width: 1.5) : null,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  emoji,
-                                  style: const TextStyle(fontSize: 22),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    )
-                  ],
-                ),
-              ),
-
-              _buildSectionHeader('TIMING MATRIX'),
-
-              // DATE & TIME CARD
-              Container(
-                decoration: BoxDecoration(
-                  color: iosCardBackground,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 6, 12, 6),
-                      child: Row(
-                        children: [
-                          const Text('All-day Event', style: TextStyle(fontSize: 17)),
-                          const Spacer(),
-                          CupertinoSwitch(
-                            activeColor: _selectedColor,
-                            value: _isAllDay,
-                            onChanged: (val) => setState(() => _isAllDay = val),
-                          )
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 16),
-                      child: Container(height: 0.5, color: CupertinoColors.separator),
-                    ),
-
-                    // Starts Row
-                    GestureDetector(
-                      onTap: () => _showDatePickerModal(true),
-                      behavior: HitTestBehavior.opaque,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Starts', style: TextStyle(fontSize: 17)),
-                            Text(
-                              _isAllDay
-                                  ? '${_startDate.day}/${_startDate.month}/${_startDate.year}'
-                                  : '${_startDate.day}/${_startDate.month}/${_startDate.year} ${_startDate.hour.toString().padLeft(2, '0')}:${_startDate.minute.toString().padLeft(2, '0')}',
-                              style: TextStyle(fontSize: 17, color: _selectedColor, fontWeight: FontWeight.w500),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 16),
-                      child: Container(height: 0.5, color: CupertinoColors.separator),
-                    ),
-
-                    // Ends Row
-                    GestureDetector(
-                      onTap: () => _showDatePickerModal(false),
-                      behavior: HitTestBehavior.opaque,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Ends', style: TextStyle(fontSize: 17)),
-                            Text(
-                              _isAllDay
-                                  ? '${_endDate.day}/${_endDate.month}/${_endDate.year}'
-                                  : '${_endDate.day}/${_endDate.month}/${_endDate.year} ${_endDate.hour.toString().padLeft(2, '0')}:${_endDate.minute.toString().padLeft(2, '0')}',
-                              style: TextStyle(fontSize: 17, color: _selectedColor, fontWeight: FontWeight.w500),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              _buildSectionHeader('AVAILABILITY & SYSTEMS'),
-
-              // SYSTEM ALERTS & ACCESSIBILITY CONFIGURATION
-              Container(
-                decoration: BoxDecoration(
-                  color: iosCardBackground,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    GestureDetector(
-                      onTap: _showAlertSelector,
-                      behavior: HitTestBehavior.opaque,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        child: Row(
-                          children: [
-                            const Text('Alert', style: TextStyle(fontSize: 17)),
-                            const Spacer(),
-                            Text(
-                              _getAlertLabel(_selectedAlert),
-                              style: const TextStyle(fontSize: 17, color: CupertinoColors.secondaryLabel),
-                            ),
-                            const SizedBox(width: 6),
-                            const Icon(CupertinoIcons.chevron_forward, size: 16, color: CupertinoColors.systemGrey3),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Padding(padding: const EdgeInsets.only(left: 16), child: Container(height: 0.5, color: CupertinoColors.separator)),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
-                      child: Row(
-                        children: [
-                          const Text('Show As', style: TextStyle(fontSize: 17)),
-                          const Spacer(),
-                          SizedBox(
-                            width: 170,
-                            child: CupertinoSegmentedControl<String>(
-                              selectedColor: _selectedColor,
-                              borderColor: _selectedColor,
-                              pressedColor: _selectedColor.withOpacity(0.1),
-                              groupValue: _selectedAvailability,
-                              children: const {
-                                'Busy': Padding(padding: EdgeInsets.symmetric(vertical: 6), child: Text('Busy', style: TextStyle(fontSize: 13))),
-                                'Free': Padding(padding: EdgeInsets.symmetric(vertical: 6), child: Text('Free', style: TextStyle(fontSize: 13))),
-                              },
-                              onValueChanged: (val) => setState(() => _selectedAvailability = val),
-                            ),
-                          )
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              _buildSectionHeader('AGENDA REMARKS & CHECKPOINTS'),
-
-// INTEGRATED CHECKLIST & DESCRIPTION WRAPPER
-              Container(
-                decoration: BoxDecoration(
-                  color: iosCardBackground,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 1. Text Field for overall rich text summary description
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: CupertinoTextField(
-                        controller: _notesController,
-                        placeholder: 'Add description notes, context summaries or links...',
-                        placeholderStyle: const TextStyle(color: CupertinoColors.placeholderText),
-                        decoration: const BoxDecoration(color: Colors.transparent),
-                        maxLines: 3,
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                    ),
-
-                    if (_checklistItems.isNotEmpty) ...[
-                      Padding(
-                        padding: const EdgeInsets.only(left: 16),
-                        child: Container(height: 0.5, color: CupertinoColors.separator),
-                      ),
-
-                      // 2. Dynamic Interactive Checkpoint Rows
-                      ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _checklistItems.length,
-                        itemBuilder: (context, index) {
-                          final item = _checklistItems[index];
-                          return Dismissible(
-                            key: Key('check_$index${item['text']}'),
-                            direction: DismissDirection.endToStart,
-                            background: Container(
-                              color: CupertinoColors.systemRed,
-                              alignment: Alignment.centerRight,
-                              padding: const EdgeInsets.all(4),
-                              child: const Icon(CupertinoIcons.delete, color: Colors.white, size: 20),
-                            ),
-                            onDismissed: (_) {
-                              setState(() => _checklistItems.removeAt(index));
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                              decoration: const BoxDecoration(
-                                border: Border(bottom: BorderSide(color: CupertinoColors.extraLightBackgroundGray, width: 0.5)),
-                              ),
-                              child: Row(
-                                children: [
-                                  GestureDetector(
-                                    onTap: () {
-                                      setState(() {
-                                        item['done'] = !item['done'];
-                                      });
-                                    },
-                                    child: AnimatedContainer(
-                                      duration: const Duration(milliseconds: 200),
-                                      margin: const EdgeInsets.only(right: 12),
-                                      width: 22,
-                                      height: 22,
-                                      decoration: BoxDecoration(
-                                        color: item['done'] ? _selectedColor : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(
-                                          color: item['done'] ? _selectedColor : CupertinoColors.systemGrey3,
-                                          width: 1.5,
-                                        ),
-                                      ),
-                                      child: item['done']
-                                          ? const Icon(CupertinoIcons.checkmark, size: 14, color: Colors.white)
-                                          : null,
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: Text(
-                                      item['text'],
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        color: item['done'] ? CupertinoColors.secondaryLabel : CupertinoColors.label,
-                                        decoration: item['done'] ? TextDecoration.lineThrough : null,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-
-                    Padding(
-                      padding: const EdgeInsets.only(left: 16),
-                      child: Container(height: 0.5, color: CupertinoColors.separator),
-                    ),
-
-                    // 3. Apple Notes-Style Inline Sub-task Creator Row
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
-                      child: Row(
-                        children: [
-                          Icon(CupertinoIcons.add_circled_solid, color: _selectedColor, size: 22),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: CupertinoTextField(
-                              controller: _newItemController,
-                              placeholder: 'Add a sub-task item...',
-                              placeholderStyle: const TextStyle(color: CupertinoColors.placeholderText, fontSize: 15),
-                              decoration: const BoxDecoration(color: Colors.transparent),
-                              style: const TextStyle(fontSize: 15),
-                              onSubmitted: (_) => _addChecklistItem(),
-                            ),
-                          ),
-                          CupertinoButton(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            onPressed: _addChecklistItem,
-                            child: Text(
-                              'Add',
-                              style: TextStyle(color: _selectedColor, fontWeight: FontWeight(600), fontSize: 15),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            ],
+              );
+            }),
           ),
-        ),
+        ],
       ),
-    );
-  }
-// Under your existing text controllers:
-  final List<Map<String, dynamic>> _checklistItems = [];
-  final TextEditingController _newItemController = TextEditingController();
-  
-  void _addChecklistItem() {
-    final text = _newItemController.text.trim();
-    if (text.isNotEmpty) {
-      setState(() {
-        _checklistItems.add({
-          'text': text,
-          'done': false,
-        });
-        _newItemController.clear();
-      });
-    }
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-      child: Text(
-        title,
-        style: const TextStyle(fontSize: 13, color: CupertinoColors.secondaryLabel, fontWeight: FontWeight.w500, letterSpacing: -0.05),
-      ),
-    );
-  }
-
-  Widget _buildSubLabel(String title) {
-    return Text(
-      title,
-      style: TextStyle(fontSize: 12, color: CupertinoColors.secondaryLabel.withOpacity(0.8), fontWeight: FontWeight.w600, letterSpacing: -0.01),
     );
   }
 }

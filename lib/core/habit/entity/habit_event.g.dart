@@ -16,13 +16,7 @@ class HabitEventAdapter extends TypeAdapter<HabitEvent> {
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
-    return HabitEvent(
-      id: fields[0] as String,
-      habitId: fields[1] as String,
-      timestamp: fields[2] as DateTime,
-      valueLogged: fields[3] as double,
-      note: fields[4] as String?,
-    );
+    return HabitEvent(id: fields[0] as String, habitId: fields[1] as String, timestamp: fields[2] as DateTime, valueLogged: fields[3] as double, note: fields[4] as String?);
   }
 
   @override
