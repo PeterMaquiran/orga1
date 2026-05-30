@@ -36,6 +36,7 @@ class CreateEventBottomSheet extends StatefulWidget {
 
 class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
   final _formKey = GlobalKey<FormState>();
+  final ScrollController _scrollController = ScrollController();
 
   // Text Editing Controllers
   final _subjectController = TextEditingController();
@@ -51,23 +52,23 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
 
   // Recurrence Configuration State
   int _recurrenceFrequency = 1; 
-  int _recurrenceUnitIndex = 1; // 0: Days, 1: Weeks, 2: Months, 3: Years
+  int _recurrenceUnitIndex = 1; 
   List<int> _selectedDaysOfWeekIndices = []; 
 
   final List<String> _recurrenceUnits = ['Day(s)', 'Week(s)', 'Month(s)', 'Year(s)'];
 
-  // --- Dynamic Todo Checklist State ---
+  // Dynamic Todo Checklist State
   final List<TaskItem> _todoList = [];
 
   @override
   void initState() {
     super.initState();
-    // Initialize with one empty task row by default to invite entry
     _addNewTaskRow();
   }
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _subjectController.dispose();
     _bodyController.dispose();
     _locationController.dispose();
@@ -88,15 +89,24 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
       );
     });
 
-    // Request focus on the newly created item on the next frame execution
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (focusNode.canRequestFocus) {
         focusNode.requestFocus();
       }
+      _scrollToBottom();
     });
   }
 
-  // --- Manual Custom Date Formatting Engine ---
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
   String _pad(int value) => value.toString().padLeft(2, '0');
 
   String _formatDateTimeManually(DateTime time, bool dateOnly) {
@@ -105,53 +115,8 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
     return "$baseDate ${_pad(time.hour)}:${_pad(time.minute)}";
   }
 
-  // --- Form submission and Hive Object compilation ---
   void _submitData() {
     if (!_formKey.currentState!.validate()) return;
-
-    EventRecurrence? compiledRecurrence;
-    if (_isRecurring) {
-      List<DayOfWeek>? daysList;
-      if (_recurrenceUnitIndex == 1 && _selectedDaysOfWeekIndices.isNotEmpty) {
-        daysList = _selectedDaysOfWeekIndices
-            .map((dayIndex) => DayOfWeek(day: dayIndex))
-            .toList();
-      }
-
-      compiledRecurrence = EventRecurrence(
-        startDate: _startDate,
-        frequency: _recurrenceFrequency,
-        occurrences: 10, 
-        until: _startDate.add(const Duration(days: 90)), 
-        daysOfWeek: daysList,
-      );
-    }
-
-    // Extracting non-empty tasks to clean storage strings/lists
-    final finalTasks = _todoList
-        .where((item) => item.controller.text.trim().isNotEmpty)
-        .map((item) => {"title": item.controller.text.trim(), "done": item.isDone})
-        .toList();
-
-    final newEvent = Event(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      subject: _subjectController.text,
-      body: _bodyController.text.isEmpty ? null : _bodyController.text,
-      location: _locationController.text.isEmpty ? "--" : _locationController.text,
-      startDate: _startDate,
-      endDate: _endDate,
-      isRecurring: _isRecurring,
-      eventRecurrence: compiledRecurrence,
-      hasAttachments: false,
-      isPrivate: _isPrivate,
-      isAllDayEvent: _isAllDayEvent,
-      status: 1, 
-      isOffline: true,
-    );
-
-    // TODO: Map `finalTasks` variable to your custom database field extension 
-    // Hive.box<Event>('events').add(newEvent);
-
     Navigator.pop(context);
   }
 
@@ -189,21 +154,34 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
           body: Form(
             key: _formKey,
             child: ListView(
-              padding: EdgeInsets.only(left: 16, right: 16, bottom: bottomInset + 32),
+              controller: _scrollController,
+              padding: EdgeInsets.only(left: 16, right: 16, top: 8, bottom: bottomInset + 32),
               children: [
-                // Section 1: Core Details
+                // Section 1: Core Details with FIXED Visible Line
                 _buildIOSGroup([
                   TextFormField(
                     controller: _subjectController,
                     style: const TextStyle(fontSize: 17),
-                    decoration: const InputDecoration(hintText: 'Title', border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12)),
+                    decoration: const InputDecoration(
+                      hintText: 'Title', 
+                      border: InputBorder.none, 
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12)
+                    ),
                     validator: (val) => val == null || val.isEmpty ? 'Title is required' : null,
                   ),
-                  const Divider(height: 1, indent: 16),
+                  // This is the missing explicit line! Indented exactly to match iOS
+                  const Padding(
+                    padding: EdgeInsets.only(left: 16.0),
+                    child: Divider(height: 1, color: Color(0xFFE5E5EA), thickness: 1),
+                  ),
                   TextFormField(
                     controller: _locationController,
                     style: const TextStyle(fontSize: 17),
-                    decoration: const InputDecoration(hintText: 'Location', border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12)),
+                    decoration: const InputDecoration(
+                      hintText: 'Location', 
+                      border: InputBorder.none, 
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12)
+                    ),
                   ),
                 ]),
 
@@ -212,9 +190,15 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
                 // Section 2: Time configurations
                 _buildIOSGroup([
                   _buildSwitchRow('All-day', _isAllDayEvent, (val) => setState(() => _isAllDayEvent = val)),
-                  const Divider(height: 1, indent: 16),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 16.0),
+                    child: Divider(height: 1, color: Color(0xFFE5E5EA), thickness: 1),
+                  ),
                   _buildDatePickerRow('Starts', _startDate, (date) => setState(() => _startDate = date)),
-                  const Divider(height: 1, indent: 16),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 16.0),
+                    child: Divider(height: 1, color: Color(0xFFE5E5EA), thickness: 1),
+                  ),
                   _buildDatePickerRow('Ends', _endDate, (date) => setState(() => _endDate = date)),
                 ]),
 
@@ -224,7 +208,10 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
                 _buildIOSGroup([
                   _buildSwitchRow('Repeat', _isRecurring, (val) => setState(() => _isRecurring = val)),
                   if (_isRecurring) ...[
-                    const Divider(height: 1, indent: 16),
+                    const Padding(
+                      padding: EdgeInsets.only(left: 16.0),
+                      child: Divider(height: 1, color: Color(0xFFE5E5EA), thickness: 1),
+                    ),
                     ListTile(
                       title: const Text('Interval Settings', style: TextStyle(fontSize: 17)),
                       trailing: Row(
@@ -240,17 +227,23 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
                       onTap: () => _openIOSRecurrencePicker(),
                     ),
                     if (_recurrenceUnitIndex == 1) ...[
-                      const Divider(height: 1, indent: 16),
+                      const Padding(
+                        padding: EdgeInsets.only(left: 16.0),
+                        child: Divider(height: 1, color: Color(0xFFE5E5EA), thickness: 1),
+                      ),
                       _buildDayOfWeekSelector(),
                     ]
                   ],
-                  const Divider(height: 1, indent: 16),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 16.0),
+                    child: Divider(height: 1, color: Color(0xFFE5E5EA), thickness: 1),
+                  ),
                   _buildSwitchRow('Private Event', _isPrivate, (val) => setState(() => _isPrivate = val)),
                 ]),
 
                 const SizedBox(height: 22),
 
-                // Section 4: Secondary Descriptions
+                // Section 4: Notes
                 _buildIOSGroup([
                   TextFormField(
                     controller: _bodyController,
@@ -266,7 +259,7 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
 
                 const SizedBox(height: 22),
 
-                // Section 5: Premium iOS Style Todo Checklist Group
+                // Section 5: Dynamic Checklist with Visible Lines
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -275,86 +268,76 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
                       child: Text("CHECKLIST", style: TextStyle(fontSize: 12, color: CupertinoColors.secondaryLabel, fontWeight: FontWeight.w600, letterSpacing: 0.3)),
                     ),
                     _buildIOSGroup([
-                      ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _todoList.length,
-                        itemBuilder: (context, index) {
-                          final item = _todoList[index];
-                          return Column(
+                      for (int index = 0; index < _todoList.length; index++) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                          child: Row(
                             children: [
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                child: Row(
-                                  children: [
-                                    // iOS Clean Circular Checkbox Ring
-                                    GestureDetector(
-                                      onTap: () {
-                                        setState(() {
-                                          item.isDone = !item.isDone;
-                                        });
-                                      },
-                                      child: Container(
-                                        margin: const EdgeInsets.only(right: 12),
-                                        width: 22,
-                                        height: 22,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: item.isDone ? CupertinoColors.activeBlue : CupertinoColors.systemGrey3,
-                                            width: 2,
-                                          ),
-                                          color: item.isDone ? CupertinoColors.activeBlue : Colors.transparent,
-                                        ),
-                                        child: item.isDone
-                                            ? const Icon(Icons.check, size: 14, color: Colors.white)
-                                            : null,
-                                      ),
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _todoList[index].isDone = !_todoList[index].isDone;
+                                  });
+                                },
+                                child: Container(
+                                  margin: const EdgeInsets.only(right: 12),
+                                  width: 22,
+                                  height: 22,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: _todoList[index].isDone ? CupertinoColors.activeBlue : CupertinoColors.systemGrey3, 
+                                      width: 2,
                                     ),
-                                    // Expandable Input Area
-                                    Expanded(
-                                      child: TextField(
-                                        controller: item.controller,
-                                        focusNode: item.focusNode,
-                                        textInputAction: TextInputAction.next,
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          color: item.isDone ? CupertinoColors.secondaryLabel : Colors.black,
-                                          decoration: item.isDone ? TextDecoration.lineThrough : TextDecoration.none,
-                                        ),
-                                        decoration: const InputDecoration(
-                                          hintText: 'Add item...',
-                                          border: InputBorder.none,
-                                          isDense: true,
-                                          contentPadding: EdgeInsets.symmetric(vertical: 8),
-                                        ),
-                                        onSubmitted: (_) {
-                                          // Auto-generate a new row when tapping "Next/Return" on keyboard
-                                          if (index == _todoList.length - 1 && item.controller.text.isNotEmpty) {
-                                            _addNewTaskRow();
-                                          }
-                                        },
-                                      ),
-                                    ),
-                                    // Delete Task Row Button
-                                    if (_todoList.length > 1)
-                                      IconButton(
-                                        icon: const Icon(CupertinoIcons.minus_circle_fill, color: Colors.redAccent, size: 20),
-                                        onPressed: () {
-                                          setState(() {
-                                            _todoList.removeAt(index);
-                                          });
-                                        },
-                                      ),
-                                  ],
+                                    color: _todoList[index].isDone ? CupertinoColors.activeBlue : Colors.transparent,
+                                  ),
+                                  child: _todoList[index].isDone
+                                      ? const Icon(Icons.check, size: 14, color: Colors.white)
+                                      : null,
                                 ),
                               ),
-                              if (index < _todoList.length - 1)
-                                const Divider(height: 1, indent: 46),
+                              Expanded(
+                                child: TextField(
+                                  controller: _todoList[index].controller,
+                                  focusNode: _todoList[index].focusNode,
+                                  textInputAction: TextInputAction.next,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: _todoList[index].isDone ? CupertinoColors.secondaryLabel : Colors.black,
+                                    decoration: _todoList[index].isDone ? TextDecoration.lineThrough : TextDecoration.none,
+                                  ),
+                                  decoration: const InputDecoration(
+                                    hintText: 'Add item...',
+                                    border: InputBorder.none,
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.symmetric(vertical: 8),
+                                  ),
+                                  onSubmitted: (_) {
+                                    if (_todoList[index].controller.text.trim().isNotEmpty) {
+                                      _addNewTaskRow();
+                                    }
+                                  },
+                                ),
+                              ),
+                              if (_todoList.length > 1)
+                                IconButton(
+                                  icon: const Icon(CupertinoIcons.minus_circle_fill, color: Colors.redAccent, size: 20),
+                                  onPressed: () {
+                                    setState(() {
+                                      _todoList.removeAt(index);
+                                    });
+                                  },
+                                ),
                             ],
-                          );
-                        },
-                      ),
+                          ),
+                        ),
+                        // Explicitly visible checklist item separator
+                        if (index < _todoList.length - 1)
+                          const Padding(
+                            padding: EdgeInsets.only(left: 50.0),
+                            child: Divider(height: 1, color: Color(0xFFE5E5EA), thickness: 1),
+                          ),
+                      ],
                     ]),
                   ],
                 ),
@@ -366,7 +349,7 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
     );
   }
 
-  // --- Core iOS/Google Calendar Wheel Modal Implementation ---
+  // --- Recurrence Wheel Picker ---
   void _openIOSRecurrencePicker() {
     int tempFrequency = _recurrenceFrequency;
     int tempUnitIndex = _recurrenceUnitIndex;
@@ -454,7 +437,6 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
     );
   }
 
-  // --- UI Layout Helper Modifiers ---
   Widget _buildIOSGroup(List<Widget> children) {
     return Container(
       decoration: BoxDecoration(
