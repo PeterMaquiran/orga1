@@ -9,12 +9,14 @@ class MonthDayCell extends StatelessWidget {
     required this.isSelected,
     required this.isToday,
     required this.onTap,
+    this.hasEvents = false,
   });
 
   final DateTime date;
   final bool inMonth;
   final bool isSelected;
   final bool isToday;
+  final bool hasEvents;
   final VoidCallback onTap;
 
   @override
@@ -34,16 +36,29 @@ class MonthDayCell extends StatelessWidget {
               ? Border.all(color: active.withValues(alpha: 0.55), width: 1)
               : null,
         ),
-        child: Center(
-          child: Text(
-            '${date.day}',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-              letterSpacing: -0.2,
-              color: inMonth ? (isSelected ? active : labelColor) : tertiary,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${date.day}',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                letterSpacing: -0.2,
+                color: inMonth ? (isSelected ? active : labelColor) : tertiary,
+              ),
             ),
-          ),
+            if (hasEvents)
+              Container(
+                width: 5,
+                height: 5,
+                margin: const EdgeInsets.only(top: 2),
+                decoration: BoxDecoration(
+                  color: isSelected ? active : active.withValues(alpha: 0.85),
+                  shape: BoxShape.circle,
+                ),
+              ),
+          ],
         ),
       ),
     );

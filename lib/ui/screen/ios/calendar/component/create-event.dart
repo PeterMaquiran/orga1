@@ -1,31 +1,24 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-class TaskItem {
-  String text;
-  bool isDone;
-  FocusNode focusNode;
-  TextEditingController controller;
-
-  TaskItem({
-    required this.text,
-    this.isDone = false,
-    required this.focusNode,
-    required this.controller,
-  });
-}
-
-enum RepeatInterval { week, month, year }
+import '../logic/create_event_controller.dart';
+import '../logic/create_event_formatters.dart';
+import '../models/create_event_models.dart';
 
 class CreateEventBottomSheet extends StatefulWidget {
-  const CreateEventBottomSheet({super.key});
+  const CreateEventBottomSheet({super.key, this.onSaved});
 
-  static void show(BuildContext context) {
+  final Future<void> Function()? onSaved;
+
+  static void show(
+    BuildContext context, {
+    Future<void> Function()? onSaved,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const CreateEventBottomSheet(),
+      builder: (context) => CreateEventBottomSheet(onSaved: onSaved),
     );
   }
 
@@ -36,108 +29,31 @@ class CreateEventBottomSheet extends StatefulWidget {
 class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
   final _formKey = GlobalKey<FormState>();
   final ScrollController _scrollController = ScrollController();
-
-  final _subjectController = TextEditingController();
-  final _bodyController = TextEditingController();
-  final _locationController = TextEditingController();
-
-  DateTime _startDate = DateTime.now();
-  DateTime _endDate = DateTime.now().add(const Duration(hours: 1));
-  bool _isRecurring = false;
-  bool _isAllDayEvent = false;
-
-  RepeatInterval _repeatInterval = RepeatInterval.week;
-  final List<int> _selectedDaysOfWeekIndices = [];
-  late DateTime _repeatUntilDate;
-
-  final List<TaskItem> _todoList = [];
-
-  bool get _isWeeklyRepeat =>
-      _isRecurring && _repeatInterval == RepeatInterval.week;
-
-  bool get _isDateRangeRepeat =>
-      _isRecurring &&
-      (_repeatInterval == RepeatInterval.month ||
-          _repeatInterval == RepeatInterval.year);
+  late final CreateEventController _controller;
 
   @override
   void initState() {
     super.initState();
-    _repeatUntilDate = _defaultRepeatUntil(_startDate, _repeatInterval);
-    _addNewTaskRow();
+    _controller = CreateEventController();
+    _controller.addListener(_onControllerChanged);
   }
 
-  DateTime _dateOnly(DateTime date) =>
-      DateTime(date.year, date.month, date.day);
-
-  DateTime _defaultRepeatUntil(DateTime from, RepeatInterval interval) {
-    switch (interval) {
-      case RepeatInterval.week:
-        return from.add(const Duration(days: 7 * 12));
-      case RepeatInterval.month:
-        return DateTime(from.year, from.month + 6, from.day);
-      case RepeatInterval.year:
-        return DateTime(from.year + 2, from.month, from.day);
-    }
-  }
-
-  static const _monthsShort = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
-
-  String _formatDateOnly(DateTime time) =>
-      '${_monthsShort[time.month - 1]} ${time.day}, ${time.year}';
-
-  String _formatShortDate(DateTime time) {
-    return '${_monthsShort[time.month - 1]} ${time.day}';
-  }
-
-  String _formatWhenFieldDate(DateTime time) {
-    if (_repeatInterval == RepeatInterval.month) {
-      return '${time.day}';
-    }
-    if (_repeatInterval == RepeatInterval.year) {
-      return _formatShortDate(time);
-    }
-    return _formatDateOnly(time);
-  }
-
-  String _formatMonthDayRange(DateTime start, DateTime end) {
-    if (start.day == end.day) return '${start.day}';
-    return '${start.day}–${end.day}';
-  }
-
-  String _formatYearDateRange(DateTime start, DateTime end) {
-    if (start.month == end.month) {
-      return '${_monthsShort[start.month - 1]} ${start.day}–${end.day}';
-    }
-    return '${_formatShortDate(start)} – ${_formatShortDate(end)}';
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _controller
+      ..removeListener(_onControllerChanged)
+      ..dispose();
     _scrollController.dispose();
-    _subjectController.dispose();
-    _bodyController.dispose();
-    _locationController.dispose();
-    for (var item in _todoList) {
-      item.focusNode.dispose();
-      item.controller.dispose();
-    }
     super.dispose();
   }
 
-  void _addNewTaskRow({String text = ""}) {
-    final controller = TextEditingController(text: text);
-    final focusNode = FocusNode();
-
-    setState(() {
-      _todoList.add(
-        TaskItem(text: text, focusNode: focusNode, controller: controller),
-      );
-    });
-
+  void _addNewTaskRow({String text = ''}) {
+    _controller.addNewTaskRow(text: text);
+    final focusNode = _controller.todoList.last.focusNode;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (focusNode.canRequestFocus) {
         focusNode.requestFocus();
@@ -156,166 +72,15 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
     }
   }
 
-  String _pad(int value) => value.toString().padLeft(2, '0');
-
-  String _formatDateTime(DateTime time) {
-    if (_isAllDayEvent) return _formatDateOnly(time);
-    return '${_formatDateOnly(time)} · ${_formatTime(time)}';
-  }
-
-  String _formatTime(DateTime time) =>
-      '${_pad(time.hour)}:${_pad(time.minute)}';
-
-  String _repeatSummary() {
-    switch (_repeatInterval) {
-      case RepeatInterval.week:
-        if (_selectedDaysOfWeekIndices.isEmpty) {
-          return 'Select at least one day below';
-        }
-        const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        final days = _selectedDaysOfWeekIndices.toList()..sort();
-        final names = days.map((i) => labels[i]).join(', ');
-        if (_isAllDayEvent) {
-          return 'Every week on $names, all day';
-        }
-        return 'Every week on $names, ${_formatTime(_startDate)}–${_formatTime(_endDate)}';
-      case RepeatInterval.month:
-        final range = _dateOnly(_endDate).isAfter(_dateOnly(_startDate))
-            ? ' (${_formatMonthDayRange(_startDate, _endDate)})'
-            : ' on day ${_startDate.day}';
-        return 'Every month$range';
-      case RepeatInterval.year:
-        final range = _dateOnly(_endDate).isAfter(_dateOnly(_startDate))
-            ? ' (${_formatYearDateRange(_startDate, _endDate)})'
-            : ' on ${_formatShortDate(_startDate)}';
-        return 'Every year$range';
-    }
-  }
-
-  String _repeatUntilSummary() {
-    final start = _dateOnly(_startDate);
-    final until = _dateOnly(_repeatUntilDate);
-    final days = until.difference(start).inDays;
-    if (days <= 0) return 'Last repetition is the same day as start';
-    return 'Repeats until ${_formatDateOnly(until)} ($days days)';
-  }
-
-  void _onEndDateChanged(DateTime date) {
-    setState(() {
-      _endDate = _isDateRangeRepeat ? _dateOnly(date) : date;
-      if (_dateOnly(_endDate).isBefore(_dateOnly(_startDate))) {
-        _endDate = _dateOnly(_startDate);
-      }
-    });
-  }
-
-  void _onStartTimeChanged(TimeOfDay time) {
-    setState(() {
-      _startDate = DateTime(
-        _startDate.year,
-        _startDate.month,
-        _startDate.day,
-        time.hour,
-        time.minute,
-      );
-      if (_endDate.isBefore(_startDate) || _endDate.isAtSameMomentAs(_startDate)) {
-        _endDate = _startDate.add(const Duration(hours: 1));
-      }
-    });
-  }
-
-  void _onEndTimeChanged(TimeOfDay time) {
-    setState(() {
-      _endDate = DateTime(
-        _startDate.year,
-        _startDate.month,
-        _startDate.day,
-        time.hour,
-        time.minute,
-      );
-      if (!_endDate.isAfter(_startDate)) {
-        _endDate = _startDate.add(const Duration(hours: 1));
-      }
-    });
-  }
-
-  void _onRepeatToggled(bool value) {
-    setState(() {
-      _isRecurring = value;
-      if (value) {
-        _repeatUntilDate = _defaultRepeatUntil(_startDate, _repeatInterval);
-        if (_repeatInterval == RepeatInterval.week) {
-          _startDate = _dateOnly(_startDate);
-          if (_selectedDaysOfWeekIndices.isEmpty) {
-            _selectedDaysOfWeekIndices.add(_startDate.weekday % 7);
-          }
-        } else {
-          _startDate = _dateOnly(_startDate);
-          _endDate = _dateOnly(_endDate);
-        }
-      }
-    });
-  }
-
-  void _onRepeatIntervalChanged(RepeatInterval interval) {
-    setState(() {
-      _repeatInterval = interval;
-      _repeatUntilDate = _defaultRepeatUntil(_startDate, interval);
-      if (interval == RepeatInterval.week) {
-        _startDate = _dateOnly(_startDate);
-        _endDate = DateTime(
-          _startDate.year,
-          _startDate.month,
-          _startDate.day,
-          _endDate.hour,
-          _endDate.minute,
-        );
-        if (_selectedDaysOfWeekIndices.isEmpty) {
-          _selectedDaysOfWeekIndices.add(_startDate.weekday % 7);
-        }
-      } else {
-        _selectedDaysOfWeekIndices.clear();
-        _startDate = _dateOnly(_startDate);
-        _endDate = _dateOnly(_endDate);
-        if (_endDate.isBefore(_startDate)) {
-          _endDate = _startDate;
-        }
-      }
-    });
-  }
-
-  void _onStartDateChanged(DateTime date) {
-    setState(() {
-      if (_isDateRangeRepeat) {
-        _startDate = _dateOnly(date);
-        if (_dateOnly(_endDate).isBefore(_startDate)) {
-          _endDate = _startDate;
-        }
-      } else {
-        _startDate = date;
-      }
-      if (_repeatUntilDate.isBefore(_dateOnly(_startDate))) {
-        _repeatUntilDate = _defaultRepeatUntil(_startDate, _repeatInterval);
-      }
-    });
-  }
-
-  void _onRepeatUntilChanged(DateTime date) {
-    final picked = _dateOnly(date);
-    final start = _dateOnly(_startDate);
-    setState(() {
-      _repeatUntilDate = picked.isBefore(start) ? start : picked;
-    });
-  }
-
-  void _submitData() {
+  Future<void> _submitData() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_isRecurring &&
-        _repeatInterval == RepeatInterval.week &&
-        _selectedDaysOfWeekIndices.isEmpty) {
-      return;
+    final saved = await _controller.save();
+    if (!mounted) return;
+    if (saved != null) {
+      await widget.onSaved?.call();
+      if (!mounted) return;
+      Navigator.pop(context);
     }
-    Navigator.pop(context);
   }
 
   @override
@@ -379,7 +144,7 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
               children: [
                 _buildIOSGroup([
                   TextFormField(
-                    controller: _subjectController,
+                    controller: _controller.subjectController,
                     style: const TextStyle(fontSize: 17),
                     decoration: const InputDecoration(
                       hintText: 'Title',
@@ -389,8 +154,7 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
                         vertical: 12,
                       ),
                     ),
-                    validator: (val) =>
-                        val == null || val.isEmpty ? 'Title is required' : null,
+                    validator: _controller.validateSubject,
                   ),
                   const Padding(
                     padding: EdgeInsets.only(left: 16.0),
@@ -401,7 +165,7 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
                     ),
                   ),
                   TextFormField(
-                    controller: _locationController,
+                    controller: _controller.locationController,
                     style: const TextStyle(fontSize: 17),
                     decoration: const InputDecoration(
                       hintText: 'Location',
@@ -420,8 +184,8 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
                 _buildIOSGroup([
                   _buildSwitchRow(
                     'All-day',
-                    _isAllDayEvent,
-                    (val) => setState(() => _isAllDayEvent = val),
+                    _controller.isAllDayEvent,
+                    (val) => _controller.setAllDay(val),
                   ),
                   ..._buildWhenFields(),
                 ]),
@@ -430,11 +194,11 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
 
                 _buildSectionLabel('REPEAT'),
                 _buildIOSGroup([
-                  _buildSwitchRow('Repeat', _isRecurring, _onRepeatToggled),
-                  if (_isRecurring) ...[
+                  _buildSwitchRow('Repeat', _controller.isRecurring, _controller.onRepeatToggled),
+                  if (_controller.isRecurring) ...[
                     const _InsetDivider(),
                     _buildRepeatIntervalControl(),
-                    if (_repeatInterval == RepeatInterval.week) ...[
+                    if (_controller.repeatInterval == RepeatInterval.week) ...[
                       const _InsetDivider(),
                       _buildSeriesStartRow(),
                       const _InsetDivider(),
@@ -446,7 +210,7 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
                       child: Text(
-                        _repeatSummary(),
+                        _controller.repeatSummary(),
                         style: const TextStyle(
                           fontSize: 14,
                           color: CupertinoColors.secondaryLabel,
@@ -456,7 +220,7 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
                       child: Text(
-                        _repeatUntilSummary(),
+                        _controller.repeatUntilSummary(),
                         style: TextStyle(
                           fontSize: 13,
                           color: CupertinoColors.activeBlue.withValues(alpha: 0.85),
@@ -471,7 +235,7 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
 
                 _buildIOSGroup([
                   TextFormField(
-                    controller: _bodyController,
+                    controller: _controller.bodyController,
                     maxLines: 3,
                     style: const TextStyle(fontSize: 16),
                     decoration: const InputDecoration(
@@ -492,7 +256,7 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
                   children: [
                     _buildSectionLabel('CHECKLIST'),
                     _buildIOSGroup([
-                      for (int index = 0; index < _todoList.length; index++) ...[
+                      for (int index = 0; index < _controller.todoList.length; index++) ...[
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
@@ -501,12 +265,7 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
                           child: Row(
                             children: [
                               GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _todoList[index].isDone =
-                                        !_todoList[index].isDone;
-                                  });
-                                },
+                                onTap: () => _controller.toggleTaskDone(index),
                                 child: Container(
                                   margin: const EdgeInsets.only(right: 12),
                                   width: 22,
@@ -514,16 +273,16 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: _todoList[index].isDone
+                                      color: _controller.todoList[index].isDone
                                           ? CupertinoColors.activeBlue
                                           : CupertinoColors.systemGrey3,
                                       width: 2,
                                     ),
-                                    color: _todoList[index].isDone
+                                    color: _controller.todoList[index].isDone
                                         ? CupertinoColors.activeBlue
                                         : Colors.transparent,
                                   ),
-                                  child: _todoList[index].isDone
+                                  child: _controller.todoList[index].isDone
                                       ? const Icon(
                                           Icons.check,
                                           size: 14,
@@ -534,15 +293,15 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
                               ),
                               Expanded(
                                 child: TextField(
-                                  controller: _todoList[index].controller,
-                                  focusNode: _todoList[index].focusNode,
+                                  controller: _controller.todoList[index].controller,
+                                  focusNode: _controller.todoList[index].focusNode,
                                   textInputAction: TextInputAction.next,
                                   style: TextStyle(
                                     fontSize: 16,
-                                    color: _todoList[index].isDone
+                                    color: _controller.todoList[index].isDone
                                         ? CupertinoColors.secondaryLabel
                                         : Colors.black,
-                                    decoration: _todoList[index].isDone
+                                    decoration: _controller.todoList[index].isDone
                                         ? TextDecoration.lineThrough
                                         : TextDecoration.none,
                                   ),
@@ -554,7 +313,7 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
                                         EdgeInsets.symmetric(vertical: 8),
                                   ),
                                   onSubmitted: (_) {
-                                    if (_todoList[index]
+                                    if (_controller.todoList[index]
                                         .controller
                                         .text
                                         .trim()
@@ -564,23 +323,19 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
                                   },
                                 ),
                               ),
-                              if (_todoList.length > 1)
+                              if (_controller.todoList.length > 1)
                                 IconButton(
                                   icon: const Icon(
                                     CupertinoIcons.minus_circle_fill,
                                     color: Colors.redAccent,
                                     size: 20,
                                   ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _todoList.removeAt(index);
-                                    });
-                                  },
+                                  onPressed: () => _controller.removeTaskRow(index),
                                 ),
                             ],
                           ),
                         ),
-                        if (index < _todoList.length - 1)
+                        if (index < _controller.todoList.length - 1)
                           const Padding(
                             padding: EdgeInsets.only(left: 50.0),
                             child: Divider(
@@ -602,30 +357,30 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
   }
 
   List<Widget> _buildWhenFields() {
-    if (_isWeeklyRepeat) {
-      if (_isAllDayEvent) return [];
+    if (_controller.isWeeklyRepeat) {
+      if (_controller.isAllDayEvent) return [];
       return [
         const _InsetDivider(),
         _buildTimeRangeRow(),
       ];
     }
 
-    if (_isDateRangeRepeat) {
+    if (_controller.isDateRangeRepeat) {
       return [
         const _InsetDivider(),
         _buildDatePickerRow(
           'Starts',
-          _startDate,
-          _onStartDateChanged,
+          _controller.startDate,
+          _controller.onStartDateChanged,
           dateOnly: true,
         ),
         _buildDatePickerRow(
           'Ends',
-          _endDate,
-          _onEndDateChanged,
+          _controller.endDate,
+          _controller.onEndDateChanged,
           dateOnly: true,
         ),
-        if (!_isAllDayEvent) ...[
+        if (!_controller.isAllDayEvent) ...[
           const _InsetDivider(),
           _buildTimeRangeRow(),
         ],
@@ -636,15 +391,15 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
       const _InsetDivider(),
       _buildDatePickerRow(
         'Starts',
-        _startDate,
-        _onStartDateChanged,
-        dateOnly: _isAllDayEvent,
+        _controller.startDate,
+        _controller.onStartDateChanged,
+        dateOnly: _controller.isAllDayEvent,
       ),
       _buildDatePickerRow(
         'Ends',
-        _endDate,
-        _onEndDateChanged,
-        dateOnly: _isAllDayEvent,
+        _controller.endDate,
+        _controller.onEndDateChanged,
+        dateOnly: _controller.isAllDayEvent,
       ),
     ];
   }
@@ -654,7 +409,7 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       title: const Text('Series starts', style: TextStyle(fontSize: 17)),
       trailing: Text(
-        _formatDateOnly(_startDate),
+        CreateEventFormatters.formatDateOnly(_controller.startDate),
         style: const TextStyle(
           color: CupertinoColors.activeBlue,
           fontSize: 17,
@@ -671,8 +426,8 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
               top: false,
               child: CupertinoDatePicker(
                 mode: CupertinoDatePickerMode.date,
-                initialDateTime: _startDate,
-                onDateTimeChanged: _onStartDateChanged,
+                initialDateTime: _controller.startDate,
+                onDateTimeChanged: _controller.onStartDateChanged,
               ),
             ),
           ),
@@ -690,11 +445,11 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
         children: [
           GestureDetector(
             onTap: () => _showTimePicker(
-              TimeOfDay(hour: _startDate.hour, minute: _startDate.minute),
-              _onStartTimeChanged,
+              TimeOfDay(hour: _controller.startDate.hour, minute: _controller.startDate.minute),
+              _controller.onStartTimeChanged,
             ),
             child: Text(
-              _formatTime(_startDate),
+              CreateEventFormatters.formatTime(_controller.startDate),
               style: const TextStyle(
                 color: CupertinoColors.activeBlue,
                 fontSize: 17,
@@ -707,11 +462,11 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
           ),
           GestureDetector(
             onTap: () => _showTimePicker(
-              TimeOfDay(hour: _endDate.hour, minute: _endDate.minute),
-              _onEndTimeChanged,
+              TimeOfDay(hour: _controller.endDate.hour, minute: _controller.endDate.minute),
+              _controller.onEndTimeChanged,
             ),
             child: Text(
-              _formatTime(_endDate),
+              CreateEventFormatters.formatTime(_controller.endDate),
               style: const TextStyle(
                 color: CupertinoColors.activeBlue,
                 fontSize: 17,
@@ -767,7 +522,7 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       title: const Text('Repeat until', style: TextStyle(fontSize: 17)),
       trailing: Text(
-        _formatDateOnly(_repeatUntilDate),
+        CreateEventFormatters.formatDateOnly(_controller.repeatUntilDate),
         style: const TextStyle(
           color: CupertinoColors.activeBlue,
           fontSize: 17,
@@ -784,9 +539,9 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
               top: false,
               child: CupertinoDatePicker(
                 mode: CupertinoDatePickerMode.date,
-                minimumDate: _dateOnly(_startDate),
-                initialDateTime: _repeatUntilDate,
-                onDateTimeChanged: _onRepeatUntilChanged,
+                minimumDate: _controller.dateOnly(_controller.startDate),
+                initialDateTime: _controller.repeatUntilDate,
+                onDateTimeChanged: _controller.onRepeatUntilChanged,
               ),
             ),
           ),
@@ -796,8 +551,8 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
   }
 
   Widget _buildRepeatRangeVisual() {
-    final start = _dateOnly(_startDate);
-    final until = _dateOnly(_repeatUntilDate);
+    final start = _controller.dateOnly(_controller.startDate);
+    final until = _controller.dateOnly(_controller.repeatUntilDate);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -894,7 +649,7 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
           child: Column(
             children: [
               Text(
-                _formatShortDate(date),
+                CreateEventFormatters.formatShortDate(date),
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -929,7 +684,7 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
               borderColor: CupertinoColors.activeBlue,
               pressedColor:
                   CupertinoColors.activeBlue.withValues(alpha: 0.1),
-              groupValue: _repeatInterval,
+              groupValue: _controller.repeatInterval,
               children: const {
                 RepeatInterval.week: Padding(
                   padding: EdgeInsets.symmetric(vertical: 6),
@@ -944,7 +699,7 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
                   child: Text('Year', style: TextStyle(fontSize: 13)),
                 ),
               },
-              onValueChanged: _onRepeatIntervalChanged,
+              onValueChanged: _controller.onRepeatIntervalChanged,
             ),
           ),
         ],
@@ -988,12 +743,18 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
     ValueChanged<DateTime> onDateTimeChanged, {
     bool dateOnly = false,
   }) {
-    final showDateOnly = dateOnly || _isAllDayEvent;
+    final showDateOnly = dateOnly || _controller.isAllDayEvent;
     final trailingText = showDateOnly
-        ? (_isDateRangeRepeat
-            ? _formatWhenFieldDate(currentTime)
-            : _formatDateOnly(currentTime))
-        : _formatDateTime(currentTime);
+        ? (_controller.isDateRangeRepeat
+            ? CreateEventFormatters.formatWhenFieldDate(
+                currentTime,
+                _controller.repeatInterval,
+              )
+            : CreateEventFormatters.formatDateOnly(currentTime))
+        : CreateEventFormatters.formatDateTime(
+            currentTime,
+            isAllDay: _controller.isAllDayEvent,
+          );
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       title: Text(title, style: const TextStyle(fontSize: 17)),
@@ -1048,17 +809,10 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: List.generate(7, (index) {
-              final isSelected = _selectedDaysOfWeekIndices.contains(index);
+              final isSelected =
+                  _controller.selectedDaysOfWeekIndices.contains(index);
               return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    if (isSelected) {
-                      _selectedDaysOfWeekIndices.remove(index);
-                    } else {
-                      _selectedDaysOfWeekIndices.add(index);
-                    }
-                  });
-                },
+                onTap: () => _controller.toggleDayOfWeek(index),
                 child: Container(
                   width: 36,
                   height: 36,

@@ -11,6 +11,7 @@ class OrgaMonthCalendar extends StatelessWidget {
     required this.onSelectDay,
     required this.onPageChanged,
     required this.monthForPage,
+    this.eventDates = const {},
   });
 
   final DateTime selected;
@@ -18,6 +19,7 @@ class OrgaMonthCalendar extends StatelessWidget {
   final ValueChanged<DateTime> onSelectDay;
   final ValueChanged<int> onPageChanged;
   final DateTime Function(int) monthForPage;
+  final Set<DateTime> eventDates;
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +38,7 @@ class OrgaMonthCalendar extends StatelessWidget {
                 month: monthForPage(index),
                 selected: selected,
                 onSelectDay: onSelectDay,
+                eventDates: eventDates,
               );
             },
           ),

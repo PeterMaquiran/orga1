@@ -44,6 +44,7 @@ Future<void> main() async {
   // 2. Open standard map containers
   final habitBox = await Hive.openBox('habitsBox');
   final eventBox = await Hive.openBox('habitEventsBox');
+  await Hive.openBox('calendarEventsBox');
 
   // 3. RUN SEEDER: Processes your mock data onto disk smoothly
   await HabitSeeder.seedIfEmpty(habitBox: habitBox, eventBox: eventBox);

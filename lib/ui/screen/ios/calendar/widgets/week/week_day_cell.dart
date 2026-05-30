@@ -9,11 +9,13 @@ class CalendarWeekDayCell extends StatelessWidget {
     required this.isToday,
     required this.isSelected,
     required this.onTap,
+    this.hasEvents = false,
   });
 
   final DateTime date;
   final bool isToday;
   final bool isSelected;
+  final bool hasEvents;
   final VoidCallback onTap;
 
   @override
@@ -38,16 +40,29 @@ class CalendarWeekDayCell extends StatelessWidget {
               ? active.withOpacity(0.05)
               : CupertinoColors.systemBackground.resolveFrom(context),
         ),
-        child: Center(
-          child: Text(
-            '${date.day}',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              letterSpacing: -0.2,
-              color: highlight ? active : labelColor,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${date.day}',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.2,
+                color: highlight ? active : labelColor,
+              ),
             ),
-          ),
+            if (hasEvents)
+              Container(
+                width: 5,
+                height: 5,
+                margin: const EdgeInsets.only(top: 2),
+                decoration: BoxDecoration(
+                  color: active.withValues(alpha: 0.85),
+                  shape: BoxShape.circle,
+                ),
+              ),
+          ],
         ),
       ),
     );

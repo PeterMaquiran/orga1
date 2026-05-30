@@ -14,12 +14,14 @@ class OrgaWeekMonthCalendar extends StatefulWidget {
     required this.onDateChanged,
     this.onDisplayedMonthChanged,
     this.monthViewNotifier,
+    this.eventDates = const {},
   });
 
   final DateTime selected;
   final ValueChanged<DateTime> onDateChanged;
   final ValueChanged<DateTime>? onDisplayedMonthChanged;
   final ValueNotifier<bool>? monthViewNotifier;
+  final Set<DateTime> eventDates;
 
   @override
   State<OrgaWeekMonthCalendar> createState() => _OrgaWeekMonthCalendarState();
@@ -141,6 +143,7 @@ class _OrgaWeekMonthCalendarState extends State<OrgaWeekMonthCalendar> {
               selected: _controller.selected,
               pageController: _controller.weekPageController,
               weekDaysForPage: _controller.weekDaysForPage,
+              eventDates: widget.eventDates,
               onWeekPageChanged: (i) {
                 final day = _controller.selectedForWeekPage(i);
                 if (day == _controller.selected) return;
@@ -151,6 +154,7 @@ class _OrgaWeekMonthCalendarState extends State<OrgaWeekMonthCalendar> {
             secondChild: OrgaMonthCalendar(
               selected: _controller.selected,
               monthPageController: _controller.monthPageController,
+              eventDates: widget.eventDates,
               onSelectDay: (d) {
                 _emit(d);
                 _controller.syncToSelectedMonth(animate: true);

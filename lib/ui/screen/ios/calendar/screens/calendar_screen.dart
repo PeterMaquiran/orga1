@@ -7,7 +7,9 @@ import 'package:orga1/ui/shared/menu-achor.dart';
 import '../../../../shared/appbar.dart';
 import '../../../../shared/navigationBar.dart';
 import '../component/create-event.dart';
+import '../logic/calendar_screen_controller.dart';
 import '../models/calendar_view_mode.dart';
+import '../widgets/calendar_event_list.dart';
 import '../widgets/orga_week_month_calendar.dart';
 
 class CalendarScreen extends StatefulWidget {
@@ -18,8 +20,7 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
-  late DateTime _selected;
-  late DateTime _displayedMonth;
+  late CalendarScreenController _controller;
   late ValueNotifier<bool> _monthViewNotifier;
   late final ScrollController _scrollController;
   late final ValueNotifier<double> _scrollOffset;
@@ -27,9 +28,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    _selected = DateTime(now.year, now.month, now.day);
-    _displayedMonth = DateTime(_selected.year, _selected.month);
+    _controller = CalendarScreenController();
+    _controller.addListener(_onControllerChanged);
     _scrollController = ScrollController();
     _scrollOffset = ValueNotifier(0);
 
@@ -41,14 +41,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
     });
 
     _scrollController.addListener(_onScroll);
+    _controller.initialize();
+  }
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _controller
+      ..removeListener(_onControllerChanged)
+      ..dispose();
     _scrollController
       ..removeListener(_onScroll)
       ..dispose();
     _scrollOffset.dispose();
+    _monthViewNotifier.dispose();
     super.dispose();
   }
 
@@ -89,6 +98,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     const double appBarHeight = 64.0;
     const double calendarHeight = 150.0;
+    final selected = _controller.selected;
+    final displayedMonth = _controller.displayedMonth;
+
     return Scaffold(
       extendBody: true,
       body: Stack(
@@ -127,12 +139,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         left: 16,
                         right: 16,
                       ),
-                      // sliver: SliverList(
-                      //   delegate: SliverChildBuilderDelegate(
-                      //     (context, index) => HabitCard(index: index),
-                      //     childCount: 20,
-                      //   ),
-                      // ),
+                      sliver: CalendarEventList(
+                        occurrences: _controller.selectedDayOccurrences,
+                        loading: _controller.loading,
+                        selectedDay: selected,
+                      ),
                     ),
                   ],
                 ),
@@ -183,36 +194,41 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     StatsMenuButton(
-                                    items: [
-                                      StatsMenuItem(
-                                        value: "null",
-                                        label: 'Today',
-                                        onPressed: () => const {},
-                                      ),
-                                      StatsMenuItem(
-                                        value: "null1",
-                                        label: 'Week',
-                                        onPressed: () {},
-                                      ),
-                                      StatsMenuItem(
-                                        value: "null2",
-                                        label: 'Month',
-                                        onPressed: () {},
-                                      ),
-                                    ],
+                                      items: [
+                                        StatsMenuItem(
+                                          value: 'null',
+                                          label: 'Today',
+                                          onPressed: () {
+                                            _controller.setSelected(todayDay);
+                                          },
+                                        ),
+                                        StatsMenuItem(
+                                          value: 'null1',
+                                          label: 'Week',
+                                          onPressed: () {
+                                            calendarView.value = CalendarView.week;
+                                          },
+                                        ),
+                                        StatsMenuItem(
+                                          value: 'null2',
+                                          label: 'Month',
+                                          onPressed: () {
+                                            calendarView.value = CalendarView.month;
+                                          },
+                                        ),
+                                      ],
                                     ),
                                     ValueListenableBuilder<bool>(
                                       valueListenable: _monthViewNotifier,
                                       builder: (context, isMonthView, _) {
                                         final String title = isMonthView
-                                            ? '${monthNames[_displayedMonth.month - 1]} ${_displayedMonth.year}'
-                                            : (_selected == todayDay
+                                            ? '${monthNames[displayedMonth.month - 1]} ${displayedMonth.year}'
+                                            : (selected == todayDay
                                                 ? 'Today'
                                                 : (() {
                                                     final yearStr =
-                                                        _selected.year !=
-                                                                today.year
-                                                            ? ', ${_selected.year}'
+                                                        selected.year != today.year
+                                                            ? ', ${selected.year}'
                                                             : '';
                                                     const shortMonths = [
                                                       'Jan',
@@ -228,7 +244,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                       'Nov',
                                                       'Dec',
                                                     ];
-                                                    return '${shortMonths[_selected.month - 1]} ${_selected.day}$yearStr';
+                                                    return '${shortMonths[selected.month - 1]} ${selected.day}$yearStr';
                                                   })());
                                         return Text(
                                           title,
@@ -269,7 +285,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                             height: 44,
                                             child: CupertinoButton(
                                               padding: EdgeInsets.zero,
-                                              onPressed: () => _showEventHabitModal(context),
+                                              onPressed: () =>
+                                                  _showEventHabitModal(context),
                                               child: Icon(
                                                 CupertinoIcons.add,
                                                 size: 22,
@@ -313,23 +330,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                         const EdgeInsets.fromLTRB(0, 0, 0, 19),
                                     child: OrgaWeekMonthCalendar(
                                       monthViewNotifier: _monthViewNotifier,
-                                      selected: _selected,
+                                      selected: selected,
+                                      eventDates: _controller.eventDates,
                                       onDisplayedMonthChanged: (month) {
-                                        setState(() {
-                                          _displayedMonth = DateTime(
-                                            month.year,
-                                            month.month,
-                                          );
-                                        });
+                                        _controller.setDisplayedMonth(month);
                                       },
                                       onDateChanged: (date) {
-                                        setState(() {
-                                          _selected = date;
-                                          _displayedMonth = DateTime(
-                                            date.year,
-                                            date.month,
-                                          );
-                                        });
+                                        _controller.setSelected(date);
                                       },
                                     ),
                                   ),
@@ -357,12 +364,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-
-  // Premium iOS Bottom Sheet Modal Invocation
   void _showEventHabitModal(BuildContext context) {
     showCupertinoModalPopup(
       context: context,
-      useRootNavigator: true, // <-- CRITICAL: Layers modal cleanly over navigation text layers!
+      useRootNavigator: true,
       barrierColor: Colors.black.withValues(alpha: 0.3),
       builder: (BuildContext context) {
         return Container(
@@ -371,7 +376,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
             borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
           ),
           clipBehavior: Clip.antiAlias,
-          child: const CreateEventBottomSheet(),
+          child: CreateEventBottomSheet(
+            onSaved: _controller.refresh,
+          ),
         );
       },
     );

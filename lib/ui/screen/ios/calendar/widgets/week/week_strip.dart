@@ -13,6 +13,7 @@ class CalendarWeekStrip extends StatelessWidget {
     required this.weekDaysForPage,
     required this.onWeekPageChanged,
     required this.onDayTap,
+    this.eventDates = const {},
   });
 
   final DateTime today;
@@ -21,6 +22,7 @@ class CalendarWeekStrip extends StatelessWidget {
   final List<DateTime> Function(int index) weekDaysForPage;
   final ValueChanged<int> onWeekPageChanged;
   final ValueChanged<DateTime> onDayTap;
+  final Set<DateTime> eventDates;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +48,9 @@ class CalendarWeekStrip extends StatelessWidget {
                     isSelected: date.year == selected.year &&
                         date.month == selected.month &&
                         date.day == selected.day,
+                    hasEvents: eventDates.contains(
+                      OrgaCalendarDateUtils.dateOnly(date),
+                    ),
                     onTap: () => onDayTap(date),
                   ),
               ],

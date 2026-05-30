@@ -11,11 +11,13 @@ class MonthGrid extends StatelessWidget {
     required this.month,
     required this.selected,
     required this.onSelectDay,
+    this.eventDates = const {},
   });
 
   final DateTime month;
   final DateTime selected;
   final ValueChanged<DateTime> onSelectDay;
+  final Set<DateTime> eventDates;
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +50,9 @@ class MonthGrid extends StatelessWidget {
                           inMonth: inMonth,
                           isSelected: DateUtils.isSameDay(date, selected),
                           isToday: DateUtils.isSameDay(date, todayDay),
+                          hasEvents: eventDates.contains(
+                            OrgaCalendarDateUtils.dateOnly(date),
+                          ),
                           onTap: () =>
                               onSelectDay(OrgaCalendarDateUtils.dateOnly(date)),
                         );
