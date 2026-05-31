@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:orga1/core/habit/entity/habit_form_input.dart';
-import 'package:orga1/core/habit/entity/habit_goal_type.dart';
+import 'package:orga1/ui/screen/ios/home/models/habit_form_input.dart';
+import 'package:orga1/ui/screen/ios/home/models/habit_goal_type.dart';
 
 import '../../../../shared/emoji.dart';
 

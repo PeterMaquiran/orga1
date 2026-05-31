@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:orga1/ui/shared/menu-achor.dart';
 
 import '../../calendar/logic/calendar_date_utils.dart';
-import 'package:orga1/core/habit/entity/habit_form_input.dart';
+import 'package:orga1/ui/screen/ios/home/models/habit_form_input.dart';
 import 'package:orga1/ui/screen/ios/home/models/home_view_mode.dart';
 import 'create-habit.dart';
 

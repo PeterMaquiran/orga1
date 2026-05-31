@@ -1,5 +1,5 @@
 import 'package:flutter/cupertino.dart';
-import 'package:orga1/core/habit/entity/habit_form_input.dart';
+import 'package:orga1/ui/screen/ios/home/models/habit_form_input.dart';
 import 'package:orga1/ui/screen/ios/home/models/quick_log_habit.dart';
 
 import 'create-habit.dart';

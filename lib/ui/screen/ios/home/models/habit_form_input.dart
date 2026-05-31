@@ -1,5 +1,5 @@
 import 'package:orga1/core/habit/entity/habit.dart';
-import 'package:orga1/core/habit/entity/habit_goal_type.dart';
+import 'package:orga1/ui/screen/ios/home/models/habit_goal_type.dart';
 
 /// Typed payload for creating or updating a habit from the UI.
 class HabitFormInput {

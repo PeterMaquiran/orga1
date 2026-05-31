@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:orga1/core/habit/entity/habit_with_events.dart';
+import 'package:orga1/ui/screen/ios/home/models/habit_with_events.dart';
 
 class HabitWeekMatrixCard extends StatelessWidget {
   final HabitWithEvents item;

@@ -1,7 +1,7 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:orga1/core/habit/entity/habit.dart';
-import 'package:orga1/core/habit/entity/habit_form_input.dart';
-import 'package:orga1/core/habit/entity/habit_with_events.dart';
+import 'package:orga1/ui/screen/ios/home/models/habit_form_input.dart';
+import 'package:orga1/ui/screen/ios/home/models/habit_with_events.dart';
 import 'package:uuid/uuid.dart';
 
 import 'habit_event.repository.dart';
