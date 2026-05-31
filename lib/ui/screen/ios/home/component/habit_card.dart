@@ -6,7 +6,8 @@ class HabitCard extends StatelessWidget {
   final HabitWithEvents item; // Pass the entire object
   final DateTime targetDate;  // The specific calendar day this card represents
   final bool isSelected;
-  final VoidCallback onActionPressed; // Callback for tapping the dynamic log/check button
+  final VoidCallback onActionPressed;
+  final VoidCallback? onEdit;
 
   const HabitCard({
     super.key,
@@ -15,6 +16,7 @@ class HabitCard extends StatelessWidget {
     required this.targetDate,
     required this.isSelected,
     required this.onActionPressed,
+    this.onEdit,
   });
 
   @override
@@ -59,46 +61,62 @@ class HabitCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              // Habit Icon Circle
-              Container(
-                width: 45,
-                height: 45,
-                decoration: BoxDecoration(
-                  color: habit.color.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Text(habit.emoji, style: const TextStyle(fontSize: 20)),
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // Habit Text Data Stack
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      habit.title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onEdit,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 45,
+                          height: 45,
+                          decoration: BoxDecoration(
+                            color: habit.color.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(habit.emoji, style: const TextStyle(fontSize: 20)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                habit.title,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                habit.goalType == 'checkmark'
+                                    ? (isCompleted ? "Completed today!" : "Pending action")
+                                    : "Goal: ${_formatValue(currentValue)} / ${_formatValue(targetValue)} ${habit.unit}",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: isCompleted ? Colors.green.shade700 : Colors.black45,
+                                  fontWeight: isCompleted ? FontWeight.w500 : FontWeight.w400,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (onEdit != null)
+                          Icon(
+                            Icons.chevron_right,
+                            size: 18,
+                            color: Colors.black.withOpacity(0.25),
+                          ),
+                      ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      habit.goalType == 'checkmark'
-                          ? (isCompleted ? "Completed today!" : "Pending action")
-                          : "Goal: ${_formatValue(currentValue)} / ${_formatValue(targetValue)} ${habit.unit}",
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isCompleted ? Colors.green.shade700 : Colors.black45,
-                        fontWeight: isCompleted ? FontWeight.w500 : FontWeight.w400,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
 

@@ -1,10 +1,12 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:orga1/core/habit/entity/habit_form_input.dart';
 import 'package:orga1/core/habit/entity/habit_with_events.dart';
 
 import '../../../shared/appbar.dart';
 import '../../../shared/navigationBar.dart';
+import 'component/create-habit.dart';
 import 'component/habit_card.dart';
 import 'component/habit_card_week.dart';
 import 'component/quick-log-bottom-sheet.dart';
@@ -86,12 +88,19 @@ class _HomeScreenState extends State<HomeScreen> {
                                           item.habit.id;
 
                                   if (_controller.viewMode == HomeViewMode.week) {
-                                    return HabitWeekMatrixCard(
-                                      item: item,
-                                      targetDate: _controller.focusDate,
-                                      onDayToggled: (day) =>
-                                          _controller.toggleDay(item, day),
-                                    );
+                                  return HabitWeekMatrixCard(
+                                    item: item,
+                                    targetDate: _controller.focusDate,
+                                    onDayToggled: (day) =>
+                                        _controller.toggleDay(item, day),
+                                    onEdit: () {
+                                      CreateHabitScreen.openForEdit(
+                                        context,
+                                        initialInput: HabitFormInput.fromHabit(item.habit),
+                                        onSaveHabit: _controller.saveHabit,
+                                      );
+                                    },
+                                  );
                                   }
 
                                   return GestureDetector(
@@ -101,6 +110,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                       item: item,
                                       targetDate: _controller.focusDate,
                                       isSelected: isSelected,
+                                      onEdit: () {
+                                        CreateHabitScreen.openForEdit(
+                                          context,
+                                          initialInput: HabitFormInput.fromHabit(item.habit),
+                                          onSaveHabit: _controller.saveHabit,
+                                        );
+                                      },
                                       onActionPressed: () {
                                         _controller.selectHabit(item.habit.id);
                                         _showQuickLogModal(context, item);
@@ -164,6 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     onViewModeChanged: _controller.setViewMode,
                                     focusDate: _controller.focusDate,
                                     onFocusDateChanged: _controller.setFocusDate,
+                                    onSaveHabit: _controller.saveHabit,
                                   ),
                                 ),
                               ),

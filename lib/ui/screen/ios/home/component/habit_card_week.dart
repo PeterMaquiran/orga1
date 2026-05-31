@@ -5,12 +5,14 @@ class HabitWeekMatrixCard extends StatelessWidget {
   final HabitWithEvents item;
   final DateTime targetDate; // Hand it today (or any selected focus day)
   final Function(DateTime day) onDayToggled;
+  final VoidCallback? onEdit;
 
   const HabitWeekMatrixCard({
     super.key,
     required this.item,
     required this.targetDate,
     required this.onDayToggled,
+    this.onEdit,
   });
 
   @override
@@ -43,25 +45,44 @@ class HabitWeekMatrixCard extends StatelessWidget {
           // --- HABIT HEADER (Icon & Title) ---
           Row(
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: habit.color.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Text(habit.emoji, style: const TextStyle(fontSize: 20)),
-                ),
-              ),
-              const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  habit.title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onEdit,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: habit.color.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(habit.emoji, style: const TextStyle(fontSize: 20)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            habit.title,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                        if (onEdit != null)
+                          Icon(
+                            Icons.chevron_right,
+                            size: 18,
+                            color: Colors.black.withOpacity(0.25),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:orga1/core/habit/entity/habit.dart';
+import 'package:orga1/core/habit/entity/habit_form_input.dart';
+import 'package:orga1/core/habit/entity/habit_goal_type.dart';
 
 class QuickLogHabit {
   const QuickLogHabit({
@@ -31,6 +34,45 @@ class QuickLogHabit {
 
   Color get color => Color(colorValue);
 
+  bool get isCheckmark => goalType == 'checkmark';
+
+  factory QuickLogHabit.fromHabit(
+    HabitModel habit, {
+    double currentValue = 0,
+    String notes = '',
+  }) {
+    return QuickLogHabit(
+      id: habit.id,
+      title: habit.title,
+      emoji: habit.emoji,
+      colorValue: habit.colorValue,
+      frequency: habit.frequency,
+      activeDays: List<bool>.from(habit.activeDays),
+      goalType: habit.goalType,
+      unit: habit.unit,
+      currentValue: currentValue,
+      targetValue: habit.targetValue,
+      timeText: habit.timeText,
+      notes: notes,
+    );
+  }
+
+  HabitFormInput toFormInput() {
+    return HabitFormInput(
+      id: id.isEmpty ? null : id,
+      title: title,
+      emoji: emoji,
+      colorValue: colorValue,
+      frequency: frequency,
+      activeDays: List<bool>.from(activeDays),
+      goalType: HabitGoalType.fromStorage(goalType),
+      targetValue: targetValue,
+      unit: unit,
+      timeText: timeText,
+      notes: notes,
+    );
+  }
+
   QuickLogHabit copyWith({
     String? id,
     String? title,
@@ -61,52 +103,21 @@ class QuickLogHabit {
     );
   }
 
-  factory QuickLogHabit.fromMap(Map<String, dynamic> map) {
-    final rawColor = map['colorValue'] ?? map['color'];
-    int parsedColor = 0xFF007AFF;
-    if (rawColor is int) {
-      parsedColor = rawColor;
-    } else if (rawColor is Color) {
-      parsedColor = rawColor.toARGB32();
-    }
-
-    double parseDouble(dynamic value) {
-      if (value is num) return value.toDouble();
-      if (value is String) return double.tryParse(value) ?? 0.0;
-      return 0.0;
-    }
-
-    return QuickLogHabit(
-      id: (map['id'] ?? '').toString(),
-      title: (map['title'] ?? '').toString(),
-      emoji: (map['emoji'] ?? '❤️').toString(),
-      colorValue: parsedColor,
-      frequency: (map['frequency'] ?? 'Daily').toString(),
-      activeDays: List<bool>.from(map['activeDays'] ?? List.filled(7, true)),
-      goalType: (map['goalType'] ?? 'checkmark').toString(),
-      unit: (map['unit'] ?? '').toString(),
-      currentValue: parseDouble(map['currentValue']),
-      targetValue: parseDouble(map['targetValue']),
-      timeText: (map['timeText'] ?? '').toString(),
-      notes: (map['notes'] ?? '').toString(),
+  QuickLogHabit applyFormInput(HabitFormInput input) {
+    return copyWith(
+      id: input.id ?? id,
+      title: input.title,
+      emoji: input.emoji,
+      colorValue: input.colorValue,
+      frequency: input.frequency,
+      activeDays: input.activeDays,
+      goalType: input.goalType.storageKey,
+      unit: input.unit,
+      targetValue: input.goalType == HabitGoalType.checkmark
+          ? 1.0
+          : (input.targetValue ?? targetValue),
+      timeText: input.timeText,
+      notes: input.notes,
     );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'title': title,
-      'emoji': emoji,
-      'color': colorValue,
-      'colorValue': colorValue,
-      'frequency': frequency,
-      'activeDays': List<bool>.from(activeDays),
-      'goalType': goalType,
-      'unit': unit,
-      'currentValue': currentValue,
-      'targetValue': targetValue,
-      'timeText': timeText,
-      'notes': notes,
-    };
   }
 }

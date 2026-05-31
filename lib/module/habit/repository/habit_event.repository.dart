@@ -1,53 +1,104 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:orga1/core/habit/entity/habit_event.dart';
+import 'package:uuid/uuid.dart';
 
 class HabitEventRepository {
-  // Target your specialized events storage box directly
-  final Box<HabitEvent> _eventBox; 
-  
   HabitEventRepository(this._eventBox);
 
-  /// 1. Insert a standalone event transaction directly into the events table
-  Future<void> insertEvent(HabitEvent event) async {
-    // Save the event transaction using its unique event ID as the key
-    await _eventBox.put(event.id, event);
+  static const boxName = 'habitEventsBox';
+
+  final Box _eventBox;
+
+  HabitEvent? _fromRaw(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is HabitEvent) return raw;
+    if (raw is Map) {
+      return HabitEvent.fromStorage(raw);
+    }
+    return null;
   }
 
-  /// 2. Get all historical event entries belonging to one single habit ID
+  DateTime _normalizeDate(DateTime date) =>
+      DateTime(date.year, date.month, date.day);
+
+  Future<List<HabitEvent>> getEventsInRange(DateTime start, DateTime end) async {
+    final normalizedStart = _normalizeDate(start);
+    final normalizedEnd = DateTime(end.year, end.month, end.day, 23, 59, 59);
+
+    final events = <HabitEvent>[];
+    for (final key in _eventBox.keys) {
+      final event = _fromRaw(_eventBox.get(key));
+      if (event == null) continue;
+      final ts = event.timestamp;
+      if (!ts.isBefore(normalizedStart) && !ts.isAfter(normalizedEnd)) {
+        events.add(event);
+      }
+    }
+    return events;
+  }
+
+  Future<Map<String, List<HabitEvent>>> getEventsGroupedByHabit(
+    DateTime start,
+    DateTime end,
+  ) async {
+    final events = await getEventsInRange(start, end);
+    final grouped = <String, List<HabitEvent>>{};
+    for (final event in events) {
+      grouped.putIfAbsent(event.habitId, () => []).add(event);
+    }
+    return grouped;
+  }
+
   Future<List<HabitEvent>> getEventsByHabit(String habitId) async {
     return _eventBox.values
+        .map(_fromRaw)
+        .whereType<HabitEvent>()
         .where((event) => event.habitId == habitId)
         .toList();
   }
 
-  /// 3. Fetch all logged events across the entire app within a specific timeframe
-  Future<List<HabitEvent>> getEventsInRange(DateTime start, DateTime end) async {
-    final normalizedStart = DateTime(start.year, start.month, start.day);
-    final normalizedEnd = DateTime(end.year, end.month, end.day, 23, 59, 59);
-
-    return _eventBox.values.where((event) {
-      return event.timestamp.isAfter(normalizedStart) && 
-             event.timestamp.isBefore(normalizedEnd);
-    }).toList();
+  Future<void> insertEvent(HabitEvent event) async {
+    await _eventBox.put(event.id, event.toStorage());
   }
 
-  /// 4. Fetch events for a date window and map them specifically by Habit ID for your Week View grid
-  Future<Map<String, List<HabitEvent>>> getWeeklyEventsGroupedByHabit(
-      DateTime start, DateTime end) async {
-    
-    // Grab matching timestamp records across the range
-    final List<HabitEvent> filteredEvents = await getEventsInRange(start, end);
-    
-    // Group records by habitId key: { "habit_id_abc": [Event1, Event2] }
-    final Map<String, List<HabitEvent>> groupedMap = {};
+  Future<void> deleteEventsForHabitOnDay(String habitId, DateTime day) async {
+    final normalized = _normalizeDate(day);
+    final keysToRemove = <dynamic>[];
 
-    for (var event in filteredEvents) {
-      if (!groupedMap.containsKey(event.habitId)) {
-        groupedMap[event.habitId] = [];
+    for (final key in _eventBox.keys) {
+      final event = _fromRaw(_eventBox.get(key));
+      if (event == null) continue;
+      if (event.habitId != habitId) continue;
+      final ts = event.timestamp;
+      if (ts.year == normalized.year &&
+          ts.month == normalized.month &&
+          ts.day == normalized.day) {
+        keysToRemove.add(key);
       }
-      groupedMap[event.habitId]!.add(event);
     }
 
-    return groupedMap;
+    for (final key in keysToRemove) {
+      await _eventBox.delete(key);
+    }
+  }
+
+  Future<void> setProgressForDay({
+    required String habitId,
+    required DateTime day,
+    required double value,
+  }) async {
+    await deleteEventsForHabitOnDay(habitId, day);
+    if (value <= 0) return;
+
+    final normalized = _normalizeDate(day);
+    final id = const Uuid().v4();
+    await insertEvent(
+      HabitEvent(
+        id: id,
+        habitId: habitId,
+        timestamp: normalized,
+        valueLogged: value,
+      ),
+    );
   }
 }

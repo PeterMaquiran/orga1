@@ -1,24 +1,74 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:orga1/core/habit/entity/habit_form_input.dart';
+import 'package:orga1/core/habit/entity/habit_goal_type.dart';
+
 import '../../../../shared/emoji.dart';
 
 class CreateHabitScreen extends StatefulWidget {
   const CreateHabitScreen({
     super.key,
-    this.initialHabit,
+    this.initialInput,
     this.onSaveHabit,
     this.title = 'New Habit',
   });
 
-  final Map<String, dynamic>? initialHabit;
-  final ValueChanged<Map<String, dynamic>>? onSaveHabit;
+  final HabitFormInput? initialInput;
+  final Future<void> Function(HabitFormInput)? onSaveHabit;
   final String title;
+
+  bool get isEditing => initialInput != null && !initialInput!.isNew;
+
+  static Future<void> open(
+    BuildContext context, {
+    Future<void> Function(HabitFormInput)? onSaveHabit,
+  }) {
+    return _showSheet(context, onSaveHabit: onSaveHabit);
+  }
+
+  static Future<void> openForEdit(
+    BuildContext context, {
+    required HabitFormInput initialInput,
+    Future<void> Function(HabitFormInput)? onSaveHabit,
+  }) {
+    return _showSheet(
+      context,
+      initialInput: initialInput,
+      title: 'Edit Habit',
+      onSaveHabit: onSaveHabit,
+    );
+  }
+
+  static Future<void> _showSheet(
+    BuildContext context, {
+    HabitFormInput? initialInput,
+    String title = 'New Habit',
+    Future<void> Function(HabitFormInput)? onSaveHabit,
+  }) {
+    return showCupertinoModalPopup<void>(
+      context: context,
+      useRootNavigator: true,
+      barrierColor: Colors.black.withValues(alpha: 0.3),
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.88,
+          decoration: const BoxDecoration(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: CreateHabitScreen(
+            initialInput: initialInput,
+            title: title,
+            onSaveHabit: onSaveHabit,
+          ),
+        );
+      },
+    );
+  }
 
   @override
   State<CreateHabitScreen> createState() => _CreateHabitScreenState();
 }
-
-enum HabitGoalType { checkmark, time, liters, count }
 
 class _CreateHabitScreenState extends State<CreateHabitScreen> {
   final TextEditingController _titleController = TextEditingController();
@@ -62,7 +112,7 @@ class _CreateHabitScreenState extends State<CreateHabitScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeFromInitialHabit();
+    _initializeFromInitialInput();
   }
 
   // Helper calculation to determine smart incremental sizing for counts
@@ -72,54 +122,22 @@ class _CreateHabitScreenState extends State<CreateHabitScreen> {
     return 10;                          // Large targets (e.g., 150 squats, 500 calories)
   }
 
-  HabitGoalType _goalTypeFromString(String? raw) {
-    switch (raw) {
-      case 'time':
-        return HabitGoalType.time;
-      case 'liters':
-        return HabitGoalType.liters;
-      case 'count':
-      case 'quantity':
-      case 'distance':
-      case 'pages':
-        return HabitGoalType.count;
-      case 'checkmark':
-      default:
-        return HabitGoalType.checkmark;
-    }
-  }
-
-  void _initializeFromInitialHabit() {
-    final initial = widget.initialHabit;
+  void _initializeFromInitialInput() {
+    final initial = widget.initialInput;
     if (initial == null) return;
 
-    _titleController.text = (initial['title'] ?? '').toString();
-    _notesController.text = (initial['notes'] ?? '').toString();
-    _selectedEmoji = (initial['emoji'] ?? _selectedEmoji).toString();
-    _selectedFrequency = (initial['frequency'] ?? _selectedFrequency).toString();
-    _selectedGoalType = _goalTypeFromString(initial['goalType']?.toString());
+    _titleController.text = initial.title;
+    _notesController.text = initial.notes;
+    _selectedEmoji = initial.emoji;
+    _selectedFrequency = initial.frequency;
+    _selectedGoalType = initial.goalType;
+    _selectedColor = Color(initial.colorValue);
 
-    final colorRaw = initial['color'];
-    if (colorRaw is int) {
-      _selectedColor = Color(colorRaw);
-    } else if (colorRaw is Color) {
-      _selectedColor = colorRaw;
-    } else {
-      final colorValue = initial['colorValue'];
-      if (colorValue is int) {
-        _selectedColor = Color(colorValue);
-      }
+    for (var i = 0; i < 7; i++) {
+      _activeDays[i] = initial.activeDays[i];
     }
 
-    final activeDaysRaw = initial['activeDays'];
-    if (activeDaysRaw is List && activeDaysRaw.length == 7) {
-      final parsed = activeDaysRaw.map((e) => e == true).toList();
-      for (var i = 0; i < 7; i++) {
-        _activeDays[i] = parsed[i];
-      }
-    }
-
-    final target = (initial['targetValue'] as num?)?.toDouble() ?? 0.0;
+    final target = initial.targetValue ?? 0.0;
     if (_selectedGoalType == HabitGoalType.time) {
       _selectedMinutes = target.round().clamp(5, 1440);
     } else if (_selectedGoalType == HabitGoalType.liters) {
@@ -172,7 +190,36 @@ class _CreateHabitScreenState extends State<CreateHabitScreen> {
     super.dispose();
   }
 
-  void _submitHabit() {
+  String _unitForGoalType(HabitGoalType type) => type.defaultUnit;
+
+  HabitFormInput _buildFormInput() {
+    double? targetValue;
+    if (_selectedGoalType == HabitGoalType.time) {
+      targetValue = _selectedMinutes.toDouble();
+    } else if (_selectedGoalType == HabitGoalType.liters) {
+      targetValue = _selectedLiters;
+    } else if (_selectedGoalType == HabitGoalType.count) {
+      targetValue = _selectedCount.toDouble();
+    }
+
+    final initial = widget.initialInput;
+
+    return HabitFormInput(
+      id: initial?.id,
+      title: _titleController.text.trim(),
+      emoji: _selectedEmoji,
+      colorValue: _selectedColor.toARGB32(),
+      frequency: _selectedFrequency,
+      activeDays: List<bool>.from(_activeDays),
+      goalType: _selectedGoalType,
+      targetValue: targetValue,
+      unit: initial?.unit ?? _unitForGoalType(_selectedGoalType),
+      timeText: initial?.timeText ?? '',
+      notes: _notesController.text.trim(),
+    );
+  }
+
+  Future<void> _submitHabit() async {
     if (_titleController.text.trim().isEmpty) {
       showCupertinoDialog(
         context: context,
@@ -190,34 +237,11 @@ class _CreateHabitScreenState extends State<CreateHabitScreen> {
       return;
     }
 
-    dynamic targetValue;
-    if (_selectedGoalType == HabitGoalType.time) {
-      targetValue = _selectedMinutes;
-    } else if (_selectedGoalType == HabitGoalType.liters) {
-      targetValue = _selectedLiters;
-    } else if (_selectedGoalType == HabitGoalType.count) {
-      targetValue = _selectedCount;
-    } else {
-      targetValue = null;
-    }
+    final input = _buildFormInput();
 
-    final Map<String, dynamic> newHabit = {
-      'id': widget.initialHabit?['id'],
-      'title': _titleController.text.trim(),
-      'color': _selectedColor.value,
-      'colorValue': _selectedColor.value,
-      'emoji': _selectedEmoji,
-      'frequency': _selectedFrequency,
-      'activeDays': List<bool>.from(_activeDays),
-      'goalType': _selectedGoalType.name,
-      'targetValue': targetValue,
-      'notes': _notesController.text.trim(),
-      'unit': widget.initialHabit?['unit'],
-      'timeText': widget.initialHabit?['timeText'],
-    };
-
-    widget.onSaveHabit?.call(newHabit);
-    Navigator.of(context).pop(newHabit);
+    await widget.onSaveHabit?.call(input);
+    if (!mounted) return;
+    Navigator.of(context).pop(input);
   }
 
   @override
@@ -229,7 +253,10 @@ class _CreateHabitScreenState extends State<CreateHabitScreen> {
       backgroundColor: iosBackground,
       appBar: CupertinoNavigationBar(
         backgroundColor: iosBackground.withOpacity(0.8),
-        middle: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 17)),
+        middle: Text(
+          widget.title,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
+        ),
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
           child: const Text('Cancel', style: TextStyle(color: CupertinoColors.systemBlue, fontSize: 17)),

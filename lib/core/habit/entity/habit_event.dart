@@ -28,8 +28,9 @@ class HabitEvent extends HiveObject {
     this.note,
   });
 
-  // --- BACKEND MAP INTEGRATION (For future REST/GraphQL sync) ---
-  factory HabitEvent.fromMap(Map<String, dynamic> map) {
+  factory HabitEvent.fromStorage(dynamic raw) {
+    if (raw is HabitEvent) return raw;
+    final map = Map<String, dynamic>.from(raw as Map);
     return HabitEvent(
       id: map['id'] as String,
       habitId: map['habitId'] as String,
@@ -39,13 +40,20 @@ class HabitEvent extends HiveObject {
     );
   }
 
-  Map<String, dynamic> toMap() {
+  Map<String, dynamic> toStorage() {
     return {
       'id': id,
       'habitId': habitId,
-      'timestamp': timestamp.toIso8601String(), // ISO format matches database conventions
+      'timestamp': timestamp.toIso8601String(),
       'valueLogged': valueLogged,
       'note': note,
     };
   }
+
+  @Deprecated('Use fromStorage')
+  factory HabitEvent.fromMap(Map<String, dynamic> map) =>
+      HabitEvent.fromStorage(map);
+
+  @Deprecated('Use toStorage')
+  Map<String, dynamic> toMap() => toStorage();
 }

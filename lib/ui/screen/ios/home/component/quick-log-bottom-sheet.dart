@@ -1,8 +1,8 @@
 import 'dart:math';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:orga1/ui/screen/ios/home/component/create-habit.dart';
 import 'package:orga1/ui/screen/ios/home/models/quick_log_habit.dart';
-import 'package:orga1/ui/screen/ios/home/component/edit-habit.dart';
 
 class QuickLogBottomSheet extends StatefulWidget {
   final QuickLogHabit habit;
@@ -76,32 +76,18 @@ class _QuickLogBottomSheetState extends State<QuickLogBottomSheet> {
   }
 
   Future<void> _openEditHabitBottomSheet() async {
-    final updatedHabit = await showCupertinoModalPopup<QuickLogHabit>(
-      context: context,
-      useRootNavigator: true,
-      barrierColor: Colors.black.withValues(alpha: 0.3),
-      builder: (context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.88,
-          decoration: const BoxDecoration(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: EditHabitScreen(
-            habit: _habit.copyWith(currentValue: _currentValue),
-          ),
-        );
+    await CreateHabitScreen.openForEdit(
+      context,
+      initialInput: _habit.toFormInput(),
+      onSaveHabit: (input) async {
+        final next = _habit.applyFormInput(input);
+        setState(() {
+          _habit = next;
+          _isCheckmarkType = next.isCheckmark;
+        });
+        await widget.onEditHabit?.call(next);
       },
     );
-
-    if (updatedHabit == null) return;
-
-    setState(() {
-      _habit = updatedHabit;
-      _isCheckmarkType = updatedHabit.goalType == 'checkmark';
-    });
-
-    await widget.onEditHabit?.call(updatedHabit);
   }
 
   @override

@@ -80,8 +80,10 @@ class HabitModel extends HiveObject {
     );
   }
 
-  // --- BACKEND MAP INTEGRATION (Keeps your future Sync clean) ---
-  factory HabitModel.fromMap(Map<String, dynamic> map) {
+  /// Deserializes a value read from the Hive habits box.
+  factory HabitModel.fromStorage(dynamic raw) {
+    if (raw is HabitModel) return raw;
+    final map = Map<String, dynamic>.from(raw as Map);
     return HabitModel(
       id: map['id'] as String,
       title: map['title'] as String,
@@ -96,7 +98,8 @@ class HabitModel extends HiveObject {
     );
   }
 
-  Map<String, dynamic> toMap() {
+  /// Serializes this habit for the Hive habits box.
+  Map<String, dynamic> toStorage() {
     return {
       'id': id,
       'title': title,
@@ -110,4 +113,10 @@ class HabitModel extends HiveObject {
       'frequency': frequency,
     };
   }
+
+  @Deprecated('Use fromStorage for Hive reads')
+  factory HabitModel.fromMap(Map<String, dynamic> map) => HabitModel.fromStorage(map);
+
+  @Deprecated('Use toStorage for Hive writes')
+  Map<String, dynamic> toMap() => toStorage();
 }

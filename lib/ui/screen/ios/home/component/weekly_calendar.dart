@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:orga1/ui/shared/menu-achor.dart';
 
 import '../../calendar/logic/calendar_date_utils.dart';
-import '../models/home_view_mode.dart';
+import 'package:orga1/core/habit/entity/habit_form_input.dart';
+import 'package:orga1/ui/screen/ios/home/models/home_view_mode.dart';
 import 'create-habit.dart';
 
 class InfiniteWeeklyCalendar extends StatefulWidget {
@@ -13,12 +14,14 @@ class InfiniteWeeklyCalendar extends StatefulWidget {
     required this.onViewModeChanged,
     required this.focusDate,
     required this.onFocusDateChanged,
+    this.onSaveHabit,
   });
 
   final HomeViewMode viewMode;
   final ValueChanged<HomeViewMode> onViewModeChanged;
   final DateTime focusDate;
   final ValueChanged<DateTime> onFocusDateChanged;
+  final Future<void> Function(HabitFormInput input)? onSaveHabit;
 
   @override
   State<InfiniteWeeklyCalendar> createState() => _InfiniteWeeklyCalendarState();
@@ -208,7 +211,12 @@ class _InfiniteWeeklyCalendarState extends State<InfiniteWeeklyCalendar> {
                       height: 44,
                       child: CupertinoButton(
                         padding: EdgeInsets.zero,
-                        onPressed: () => _showCreateHabitModal(context),
+                        onPressed: () {
+                          CreateHabitScreen.open(
+                            context,
+                            onSaveHabit: widget.onSaveHabit,
+                          );
+                        },
                         child: Icon(
                           CupertinoIcons.add,
                           size: 22,
@@ -313,24 +321,6 @@ class _InfiniteWeeklyCalendarState extends State<InfiniteWeeklyCalendar> {
           ],
         ),
       ),
-    );
-  }
-
-  void _showCreateHabitModal(BuildContext context) {
-    showCupertinoModalPopup(
-      context: context,
-      useRootNavigator: true,
-      barrierColor: Colors.black.withValues(alpha: 0.3),
-      builder: (BuildContext context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.88,
-          decoration: const BoxDecoration(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: const CreateHabitScreen(),
-        );
-      },
     );
   }
 }

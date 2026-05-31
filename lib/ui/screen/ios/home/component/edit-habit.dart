@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:orga1/core/habit/entity/habit_form_input.dart';
 import 'package:orga1/ui/screen/ios/home/models/quick_log_habit.dart';
 
 import 'create-habit.dart';
@@ -11,18 +12,17 @@ class EditHabitScreen extends StatelessWidget {
   });
 
   final QuickLogHabit habit;
-  final ValueChanged<QuickLogHabit>? onSaveHabit;
+  final Future<void> Function(QuickLogHabit updatedHabit)? onSaveHabit;
 
   @override
   Widget build(BuildContext context) {
     return CreateHabitScreen(
-      initialHabit: habit.toMap(),
-      onSaveHabit: (updated) {
-        onSaveHabit?.call(QuickLogHabit.fromMap(updated).copyWith(
-          currentValue: habit.currentValue,
-        ));
-      },
+      initialInput: habit.toFormInput(),
       title: 'Edit Habit',
+      onSaveHabit: (input) async {
+        final next = habit.applyFormInput(input);
+        await onSaveHabit?.call(next);
+      },
     );
   }
 }
