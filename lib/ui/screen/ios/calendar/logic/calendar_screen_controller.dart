@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/stored_calendar_event.dart';
 import 'calendar_event_expander.dart';
-import 'calendar_event_repository.dart';
+import '../../../../../module/event/repository/calendar_event_repository.dart';
 
 class CalendarScreenController extends ChangeNotifier {
   CalendarScreenController({
