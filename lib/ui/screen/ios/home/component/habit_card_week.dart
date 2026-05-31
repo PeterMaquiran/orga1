@@ -85,7 +85,9 @@ class HabitWeekMatrixCard extends StatelessWidget {
               children: List.generate(7, (index) {
                 final DateTime currentCellDay =
                     rollingStartDay.add(Duration(days: index));
-                final bool isDayCompleted = item.isCompletedOnDay(currentCellDay);
+                final bool isScheduled = habit.isActiveOnDay(currentCellDay);
+                final bool isDayCompleted =
+                    isScheduled && item.isCompletedOnDay(currentCellDay);
                 final bool isCurrentTargetDay =
                     currentCellDay.isAtSameMomentAs(todayNormalized);
                 const manualWeekDays = [
@@ -103,21 +105,26 @@ class HabitWeekMatrixCard extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: isCurrentTargetDay
-                              ? habit.color
-                              : Colors.black.withOpacity(0.35),
+                          color: !isScheduled
+                              ? Colors.black.withOpacity(0.12)
+                              : isCurrentTargetDay
+                                  ? habit.color
+                                  : Colors.black.withOpacity(0.35),
                         ),
                       ),
                       const SizedBox(height: 6),
                       GestureDetector(
-                        onTap: () => onDayToggled(currentCellDay),
+                        onTap: isScheduled
+                            ? () => onDayToggled(currentCellDay)
+                            : null,
                         behavior: HitTestBehavior.opaque,
                         child: Padding(
                           padding: const EdgeInsets.all(4.0),
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 150),
                             padding: const EdgeInsets.all(2),
-                            decoration: isCurrentTargetDay
+                            decoration: isScheduled &&
+                                    isCurrentTargetDay
                                 ? BoxDecoration(
                                     shape: BoxShape.circle,
                                     border: Border.all(
@@ -127,14 +134,18 @@ class HabitWeekMatrixCard extends StatelessWidget {
                                   )
                                 : null,
                             child: Icon(
-                              isDayCompleted
-                                  ? Icons.check_circle_rounded
-                                  : Icons.radio_button_unchecked,
-                              color: isDayCompleted
-                                  ? Colors.green.shade400
-                                  : isCurrentTargetDay
-                                      ? habit.color.withOpacity(0.3)
-                                      : Colors.black12,
+                              !isScheduled
+                                  ? Icons.radio_button_unchecked
+                                  : isDayCompleted
+                                      ? Icons.check_circle_rounded
+                                      : Icons.radio_button_unchecked,
+                              color: !isScheduled
+                                  ? Colors.black.withOpacity(0.08)
+                                  : isDayCompleted
+                                      ? Colors.green.shade400
+                                      : isCurrentTargetDay
+                                          ? habit.color.withOpacity(0.3)
+                                          : Colors.black12,
                               size: 24,
                             ),
                           ),

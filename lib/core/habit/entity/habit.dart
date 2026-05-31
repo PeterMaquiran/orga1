@@ -53,6 +53,12 @@ class HabitModel extends HiveObject {
   // --- HELPER UTILITIES ---
   Color get color => Color(colorValue);
 
+  /// Whether this habit is scheduled on [day] (Mon=index 0 … Sun=index 6).
+  bool isActiveOnDay(DateTime day) {
+    if (activeDays.length != 7) return true;
+    return activeDays[day.weekday - 1];
+  }
+
   // --- MODEL COPIES (IMMUTABILITY) ---
   HabitModel copyWith({
     String? id,

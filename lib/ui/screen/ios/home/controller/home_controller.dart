@@ -24,6 +24,15 @@ class HomeController extends ChangeNotifier {
   HomeViewMode get viewMode => _viewMode;
   DateTime get focusDate => _focusDate;
   List<HabitWithEvents> get habits => _habits;
+
+  /// Day view: only habits scheduled on [focusDate]. Week view: all habits.
+  List<HabitWithEvents> get visibleHabits {
+    if (_viewMode == HomeViewMode.week) return _habits;
+    return _habits
+        .where((item) => item.habit.isActiveOnDay(_focusDate))
+        .toList();
+  }
+
   String? get selectedHabitId => _selectedHabitId;
   bool get loadingHabits => _loadingHabits;
 
@@ -55,9 +64,18 @@ class HomeController extends ChangeNotifier {
       range.start,
       range.end,
     );
-    _selectedHabitId ??= _habits.isNotEmpty ? _habits.first.habit.id : null;
+    _syncSelectedHabit();
     _loadingHabits = false;
     notifyListeners();
+  }
+
+  void _syncSelectedHabit() {
+    final visible = visibleHabits;
+    if (_selectedHabitId != null &&
+        !visible.any((item) => item.habit.id == _selectedHabitId)) {
+      _selectedHabitId = null;
+    }
+    _selectedHabitId ??= visible.isNotEmpty ? visible.first.habit.id : null;
   }
 
   Future<void> setViewMode(HomeViewMode mode) async {
@@ -104,6 +122,7 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> toggleDay(HabitWithEvents item, DateTime day) async {
+    if (!item.habit.isActiveOnDay(day)) return;
     final completed = item.isCompletedOnDay(day);
     final nextValue = completed ? 0.0 : item.habit.targetValue;
     await persistProgress(item, day, nextValue);
@@ -128,6 +147,5 @@ class HomeController extends ChangeNotifier {
       _selectedHabitId = null;
     }
     await _loadHabits();
-    _selectedHabitId ??= _habits.isNotEmpty ? _habits.first.habit.id : null;
   }
 }

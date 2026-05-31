@@ -77,41 +77,65 @@ class _HomeScreenState extends State<HomeScreen> {
                               hasScrollBody: false,
                               child: Center(child: CircularProgressIndicator()),
                             )
-                          : SliverList(
-                              delegate: SliverChildBuilderDelegate(
-                                (context, index) {
-                                  final item = _controller.habits[index];
-                                  final isSelected =
-                                      _controller.selectedHabitId ==
-                                          item.habit.id;
+                          : _controller.visibleHabits.isEmpty
+                              ? SliverToBoxAdapter(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 32,
+                                      horizontal: 24,
+                                    ),
+                                    child: Text(
+                                      _controller.habits.isEmpty
+                                          ? 'No habits yet'
+                                          : 'No habits scheduled for this day',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        color: Colors.black.withOpacity(0.45),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : SliverList(
+                                  delegate: SliverChildBuilderDelegate(
+                                    (context, index) {
+                                      final item =
+                                          _controller.visibleHabits[index];
+                                      final isSelected =
+                                          _controller.selectedHabitId ==
+                                              item.habit.id;
 
-                                  if (_controller.viewMode == HomeViewMode.week) {
-                                  return HabitWeekMatrixCard(
-                                    item: item,
-                                    targetDate: _controller.focusDate,
-                                    onDayToggled: (day) =>
-                                        _controller.toggleDay(item, day),
-                                    onTap: () {
-                                      _controller.selectHabit(item.habit.id);
-                                      _showQuickLogModal(context, item);
-                                    },
-                                  );
-                                  }
+                                      if (_controller.viewMode ==
+                                          HomeViewMode.week) {
+                                        return HabitWeekMatrixCard(
+                                          item: item,
+                                          targetDate: _controller.focusDate,
+                                          onDayToggled: (day) => _controller
+                                              .toggleDay(item, day),
+                                          onTap: () {
+                                            _controller
+                                                .selectHabit(item.habit.id);
+                                            _showQuickLogModal(context, item);
+                                          },
+                                        );
+                                      }
 
-                                  return HabitCard(
-                                    index: index,
-                                    item: item,
-                                    targetDate: _controller.focusDate,
-                                    isSelected: isSelected,
-                                    onTap: () {
-                                      _controller.selectHabit(item.habit.id);
-                                      _showQuickLogModal(context, item);
+                                      return HabitCard(
+                                        index: index,
+                                        item: item,
+                                        targetDate: _controller.focusDate,
+                                        isSelected: isSelected,
+                                        onTap: () {
+                                          _controller
+                                              .selectHabit(item.habit.id);
+                                          _showQuickLogModal(context, item);
+                                        },
+                                      );
                                     },
-                                  );
-                                },
-                                childCount: _controller.habits.length,
-                              ),
-                            ),
+                                    childCount:
+                                        _controller.visibleHabits.length,
+                                  ),
+                                ),
                     ),
                   ],
                 ),
