@@ -59,6 +59,11 @@ class CalendarScreenController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> deleteEvent(String id) async {
+    await _repository.delete(id);
+    await refresh();
+  }
+
   bool hasEventsOnDay(DateTime day) {
     final normalized = CalendarEventExpander.dateOnly(day);
     return eventDates.contains(normalized);

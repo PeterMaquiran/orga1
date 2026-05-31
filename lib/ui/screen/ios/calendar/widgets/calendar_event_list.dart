@@ -10,13 +10,13 @@ class CalendarEventList extends StatelessWidget {
     required this.occurrences,
     required this.loading,
     required this.selectedDay,
-    required this.onEditEvent,
+    required this.onEventTap,
   });
 
   final List<CalendarEventOccurrence> occurrences;
   final bool loading;
   final DateTime selectedDay;
-  final ValueChanged<StoredCalendarEvent> onEditEvent;
+  final ValueChanged<CalendarEventOccurrence> onEventTap;
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +51,7 @@ class CalendarEventList extends StatelessWidget {
           final occurrence = occurrences[index];
           return _CalendarEventTile(
             occurrence: occurrence,
-            onTap: () => onEditEvent(occurrence.event),
+            onTap: () => onEventTap(occurrence),
           );
         },
         childCount: occurrences.length,

@@ -337,6 +337,13 @@ class CreateEventController extends ChangeNotifier {
     return event;
   }
 
+  Future<bool> delete() async {
+    final id = _editingEventId;
+    if (id == null) return false;
+    await _repository.delete(id);
+    return true;
+  }
+
   @override
   void dispose() {
     subjectController.dispose();

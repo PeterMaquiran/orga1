@@ -24,4 +24,8 @@ class CalendarEventRepository {
   Future<void> insert(StoredCalendarEvent event) async {
     await box.put(event.id, event.toMap());
   }
+
+  Future<void> delete(String id) async {
+    await box.delete(id);
+  }
 }

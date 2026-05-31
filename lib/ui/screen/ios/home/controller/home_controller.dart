@@ -121,4 +121,13 @@ class HomeController extends ChangeNotifier {
     }
     await _loadHabits();
   }
+
+  Future<void> deleteHabit(String id) async {
+    await _repositories.habits.deleteHabit(id);
+    if (_selectedHabitId == id) {
+      _selectedHabitId = null;
+    }
+    await _loadHabits();
+    _selectedHabitId ??= _habits.isNotEmpty ? _habits.first.habit.id : null;
+  }
 }

@@ -7,6 +7,7 @@ import 'package:orga1/ui/shared/menu-achor.dart';
 import '../../../shared/appbar.dart';
 import '../../../shared/navigationBar.dart';
 import 'component/create-event.dart';
+import 'component/event-details-bottom-sheet.dart';
 import 'logic/calendar_screen_controller.dart';
 import 'models/calendar_view_mode.dart';
 import 'widgets/calendar_event_list.dart';
@@ -143,11 +144,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         occurrences: _controller.selectedDayOccurrences,
                         loading: _controller.loading,
                         selectedDay: selected,
-                        onEditEvent: (event) {
-                          CreateEventBottomSheet.openForEdit(
+                        onEventTap: (occurrence) {
+                          EventDetailsBottomSheet.open(
                             context,
-                            event: event,
-                            onSaved: _controller.refresh,
+                            occurrence: occurrence,
+                            onChanged: _controller.refresh,
+                            onDelete: _controller.deleteEvent,
                           );
                         },
                       ),

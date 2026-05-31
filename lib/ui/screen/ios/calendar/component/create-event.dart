@@ -5,17 +5,25 @@ import '../logic/create_event_controller.dart';
 import '../logic/create_event_formatters.dart';
 import '../models/create_event_models.dart';
 import '../models/stored_calendar_event.dart';
+import '../../../../shared/delete_confirmation.dart';
 
 class CreateEventBottomSheet extends StatefulWidget {
-  const CreateEventBottomSheet({super.key, this.event, this.onSaved});
+  const CreateEventBottomSheet({
+    super.key,
+    this.event,
+    this.onSaved,
+    this.onDeleted,
+  });
 
   final StoredCalendarEvent? event;
   final Future<void> Function()? onSaved;
+  final Future<void> Function()? onDeleted;
 
   static void open(
     BuildContext context, {
     StoredCalendarEvent? event,
     Future<void> Function()? onSaved,
+    Future<void> Function()? onDeleted,
   }) {
     showCupertinoModalPopup<void>(
       context: context,
@@ -31,6 +39,7 @@ class CreateEventBottomSheet extends StatefulWidget {
           child: CreateEventBottomSheet(
             event: event,
             onSaved: onSaved,
+            onDeleted: onDeleted,
           ),
         );
       },
@@ -41,8 +50,9 @@ class CreateEventBottomSheet extends StatefulWidget {
     BuildContext context, {
     required StoredCalendarEvent event,
     Future<void> Function()? onSaved,
+    Future<void> Function()? onDeleted,
   }) {
-    open(context, event: event, onSaved: onSaved);
+    open(context, event: event, onSaved: onSaved, onDeleted: onDeleted);
   }
 
   @override
@@ -104,6 +114,43 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
       if (!mounted) return;
       Navigator.pop(context);
     }
+  }
+
+  Future<void> _confirmDeleteEvent() async {
+    if (!_controller.isEditing) return;
+
+    final confirmed = await confirmDelete(
+      context,
+      title: 'Delete Event?',
+      message: 'This event will be permanently removed.',
+    );
+    if (!confirmed || !mounted) return;
+
+    final deleted = await _controller.delete();
+    if (!deleted || !mounted) return;
+
+    await widget.onDeleted?.call();
+    if (!mounted) return;
+    Navigator.pop(context);
+  }
+
+  Widget _buildDeleteSection() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 28, bottom: 8),
+      child: SizedBox(
+        width: double.infinity,
+        child: CupertinoButton(
+          onPressed: _confirmDeleteEvent,
+          child: const Text(
+            'Delete Event',
+            style: TextStyle(
+              color: CupertinoColors.destructiveRed,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -371,6 +418,9 @@ class _CreateEventBottomSheetState extends State<CreateEventBottomSheet> {
                     ]),
                   ],
                 ),
+
+                if (_controller.isEditing && widget.onDeleted != null)
+                  _buildDeleteSection(),
               ],
             ),
           ),

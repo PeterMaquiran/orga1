@@ -61,6 +61,20 @@ class HabitEventRepository {
     await _eventBox.put(event.id, event.toStorage());
   }
 
+  Future<void> deleteAllForHabit(String habitId) async {
+    final keysToRemove = <dynamic>[];
+    for (final key in _eventBox.keys) {
+      final event = _fromRaw(_eventBox.get(key));
+      if (event == null) continue;
+      if (event.habitId == habitId) {
+        keysToRemove.add(key);
+      }
+    }
+    for (final key in keysToRemove) {
+      await _eventBox.delete(key);
+    }
+  }
+
   Future<void> deleteEventsForHabitOnDay(String habitId, DateTime day) async {
     final normalized = _normalizeDate(day);
     final keysToRemove = <dynamic>[];

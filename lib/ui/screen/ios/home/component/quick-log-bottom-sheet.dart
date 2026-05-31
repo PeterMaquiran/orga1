@@ -3,17 +3,20 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:orga1/ui/screen/ios/home/component/create-habit.dart';
 import 'package:orga1/ui/screen/ios/home/models/quick_log_habit.dart';
+import 'package:orga1/ui/shared/delete_confirmation.dart';
 
 class QuickLogBottomSheet extends StatefulWidget {
   final QuickLogHabit habit;
   final Function(double updatedValue, String notes) onSave;
   final Future<void> Function(QuickLogHabit updatedHabit)? onEditHabit;
+  final Future<void> Function(String habitId)? onDeleteHabit;
 
   const QuickLogBottomSheet({
     super.key,
     required this.habit,
     required this.onSave,
     this.onEditHabit,
+    this.onDeleteHabit,
   });
 
   @override
@@ -87,7 +90,28 @@ class _QuickLogBottomSheetState extends State<QuickLogBottomSheet> {
         });
         await widget.onEditHabit?.call(next);
       },
+      onDeleteHabit: (id) async {
+        await widget.onDeleteHabit?.call(id);
+        if (!mounted) return;
+        Navigator.pop(context);
+      },
     );
+  }
+
+  Future<void> _confirmDeleteHabit() async {
+    if (widget.onDeleteHabit == null) return;
+
+    final confirmed = await confirmDelete(
+      context,
+      title: 'Delete Habit?',
+      message:
+          'This removes the habit and all of its logged progress. This cannot be undone.',
+    );
+    if (!confirmed || !mounted) return;
+
+    await widget.onDeleteHabit!(_habit.id);
+    if (!mounted) return;
+    Navigator.pop(context);
   }
 
   @override
@@ -173,7 +197,7 @@ class _QuickLogBottomSheetState extends State<QuickLogBottomSheet> {
 
               // 2. STATISTICS ACTION ICON BUTTON
               CupertinoButton(
-                padding: const EdgeInsets.only(left: 6, right: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
                 onPressed: () => {},
                 child: Icon(
                   CupertinoIcons.chart_bar_alt_fill,
@@ -181,6 +205,17 @@ class _QuickLogBottomSheetState extends State<QuickLogBottomSheet> {
                   size: 34,
                 ),
               ),
+
+              if (widget.onDeleteHabit != null)
+                CupertinoButton(
+                  padding: const EdgeInsets.only(left: 6, right: 2),
+                  onPressed: _confirmDeleteHabit,
+                  child: const Icon(
+                    CupertinoIcons.delete_solid,
+                    color: CupertinoColors.inactiveGray,
+                    size: 34,
+                  ),
+                ),
             ],
           ),
           if (!_isCheckmarkType) ...[

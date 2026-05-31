@@ -1,12 +1,10 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:orga1/ui/screen/ios/home/models/habit_form_input.dart';
 import 'package:orga1/ui/screen/ios/home/models/habit_with_events.dart';
 
 import '../../../shared/appbar.dart';
 import '../../../shared/navigationBar.dart';
-import 'component/create-habit.dart';
 import 'component/habit_card.dart';
 import 'component/habit_card_week.dart';
 import 'component/quick-log-bottom-sheet.dart';
@@ -93,35 +91,22 @@ class _HomeScreenState extends State<HomeScreen> {
                                     targetDate: _controller.focusDate,
                                     onDayToggled: (day) =>
                                         _controller.toggleDay(item, day),
-                                    onEdit: () {
-                                      CreateHabitScreen.openForEdit(
-                                        context,
-                                        initialInput: HabitFormInput.fromHabit(item.habit),
-                                        onSaveHabit: _controller.saveHabit,
-                                      );
+                                    onTap: () {
+                                      _controller.selectHabit(item.habit.id);
+                                      _showQuickLogModal(context, item);
                                     },
                                   );
                                   }
 
-                                  return GestureDetector(
-                                    onTap: () => _controller.selectHabit(item.habit.id),
-                                    child: HabitCard(
-                                      index: index,
-                                      item: item,
-                                      targetDate: _controller.focusDate,
-                                      isSelected: isSelected,
-                                      onEdit: () {
-                                        CreateHabitScreen.openForEdit(
-                                          context,
-                                          initialInput: HabitFormInput.fromHabit(item.habit),
-                                          onSaveHabit: _controller.saveHabit,
-                                        );
-                                      },
-                                      onActionPressed: () {
-                                        _controller.selectHabit(item.habit.id);
-                                        _showQuickLogModal(context, item);
-                                      },
-                                    ),
+                                  return HabitCard(
+                                    index: index,
+                                    item: item,
+                                    targetDate: _controller.focusDate,
+                                    isSelected: isSelected,
+                                    onTap: () {
+                                      _controller.selectHabit(item.habit.id);
+                                      _showQuickLogModal(context, item);
+                                    },
                                   );
                                 },
                                 childCount: _controller.habits.length,
@@ -216,6 +201,7 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context) => QuickLogBottomSheet(
         habit: quickLogHabit,
         onEditHabit: _controller.updateHabitFromQuickLog,
+        onDeleteHabit: _controller.deleteHabit,
         onSave: (updatedValue, notes) async {
           if (notes.isNotEmpty) {
             debugPrint('Attached note to session: $notes');

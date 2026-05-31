@@ -55,6 +55,7 @@ class HabitRepository {
   }
 
   Future<void> deleteHabit(String id) async {
+    await _eventRepository.deleteAllForHabit(id);
     await _habitBox.delete(id);
   }
 }

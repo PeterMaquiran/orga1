@@ -95,4 +95,23 @@ abstract final class CreateEventFormatters {
     if (occurrence.event.isAllDayEvent) return 'All day';
     return '${formatTime(occurrence.displayStart)} – ${formatTime(occurrence.displayEnd)}';
   }
+
+  static String formatRecurrenceSummary(StoredCalendarEvent event) {
+    final recurrence = event.recurrence;
+    if (!event.isRecurring || recurrence == null) return '';
+
+    final until = formatDateOnly(recurrence.until);
+    switch (recurrence.frequency) {
+      case EventRecurrenceFrequency.monthly:
+        return 'Repeats monthly until $until';
+      case EventRecurrenceFrequency.yearly:
+        return 'Repeats yearly until $until';
+      default:
+        const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        final days = recurrence.daysOfWeek.toList()..sort();
+        if (days.isEmpty) return 'Repeats weekly until $until';
+        final names = days.map((i) => labels[i]).join(', ');
+        return 'Repeats weekly on $names until $until';
+    }
+  }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:orga1/ui/screen/ios/home/models/habit_form_input.dart';
 import 'package:orga1/ui/screen/ios/home/models/habit_goal_type.dart';
 
+import '../../../../shared/delete_confirmation.dart';
 import '../../../../shared/emoji.dart';
 
 class CreateHabitScreen extends StatefulWidget {
@@ -10,11 +11,13 @@ class CreateHabitScreen extends StatefulWidget {
     super.key,
     this.initialInput,
     this.onSaveHabit,
+    this.onDeleteHabit,
     this.title = 'New Habit',
   });
 
   final HabitFormInput? initialInput;
   final Future<void> Function(HabitFormInput)? onSaveHabit;
+  final Future<void> Function(String habitId)? onDeleteHabit;
   final String title;
 
   bool get isEditing => initialInput != null && !initialInput!.isNew;
@@ -30,12 +33,14 @@ class CreateHabitScreen extends StatefulWidget {
     BuildContext context, {
     required HabitFormInput initialInput,
     Future<void> Function(HabitFormInput)? onSaveHabit,
+    Future<void> Function(String habitId)? onDeleteHabit,
   }) {
     return _showSheet(
       context,
       initialInput: initialInput,
       title: 'Edit Habit',
       onSaveHabit: onSaveHabit,
+      onDeleteHabit: onDeleteHabit,
     );
   }
 
@@ -44,6 +49,7 @@ class CreateHabitScreen extends StatefulWidget {
     HabitFormInput? initialInput,
     String title = 'New Habit',
     Future<void> Function(HabitFormInput)? onSaveHabit,
+    Future<void> Function(String habitId)? onDeleteHabit,
   }) {
     return showCupertinoModalPopup<void>(
       context: context,
@@ -60,6 +66,7 @@ class CreateHabitScreen extends StatefulWidget {
             initialInput: initialInput,
             title: title,
             onSaveHabit: onSaveHabit,
+            onDeleteHabit: onDeleteHabit,
           ),
         );
       },
@@ -242,6 +249,42 @@ class _CreateHabitScreenState extends State<CreateHabitScreen> {
     await widget.onSaveHabit?.call(input);
     if (!mounted) return;
     Navigator.of(context).pop(input);
+  }
+
+  Future<void> _confirmDeleteHabit() async {
+    final id = widget.initialInput?.id;
+    if (id == null || widget.onDeleteHabit == null) return;
+
+    final confirmed = await confirmDelete(
+      context,
+      title: 'Delete Habit?',
+      message:
+          'This removes the habit and all of its logged progress. This cannot be undone.',
+    );
+    if (!confirmed || !mounted) return;
+
+    await widget.onDeleteHabit!(id);
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  Widget _buildDeleteSection() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 28, bottom: 8),
+      child: SizedBox(
+        width: double.infinity,
+        child: CupertinoButton(
+          onPressed: _confirmDeleteHabit,
+          child: const Text(
+            'Delete Habit',
+            style: TextStyle(
+              color: CupertinoColors.destructiveRed,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -590,6 +633,9 @@ class _CreateHabitScreenState extends State<CreateHabitScreen> {
                   style: const TextStyle(fontSize: 16),
                 ),
               ),
+
+              if (widget.isEditing && widget.onDeleteHabit != null)
+                _buildDeleteSection(),
             ],
           ),
         ),
