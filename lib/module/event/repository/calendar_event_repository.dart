@@ -1,6 +1,6 @@
 import 'package:hive_flutter/hive_flutter.dart';
 
-import '../models/stored_calendar_event.dart';
+import '../../../ui/screen/ios/calendar/models/stored_calendar_event.dart';
 
 class CalendarEventRepository {
   CalendarEventRepository({Box? box}) : _box = box;

@@ -10,6 +10,7 @@ class MonthDayCell extends StatelessWidget {
     required this.isToday,
     required this.onTap,
     this.hasEvents = false,
+    this.eventCount = 1, // Optional: defaults to 1 if hasEvents is true
   });
 
   final DateTime date;
@@ -17,6 +18,7 @@ class MonthDayCell extends StatelessWidget {
   final bool isSelected;
   final bool isToday;
   final bool hasEvents;
+  final int eventCount;
   final VoidCallback onTap;
 
   @override
@@ -33,12 +35,13 @@ class MonthDayCell extends StatelessWidget {
           color: isSelected ? active.withValues(alpha: 0.18) : Colors.transparent,
           shape: BoxShape.circle,
           border: isToday && !isSelected
-              ? Border.all(color: active.withValues(alpha: 0.55), width: 1)
+              ? Border.all(color: active.withValues(alpha: 0.55), width: 1.5)
               : null,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Stack(
+          alignment: Alignment.center,
           children: [
+            // Day Number Label
             Text(
               '${date.day}',
               style: TextStyle(
@@ -48,14 +51,27 @@ class MonthDayCell extends StatelessWidget {
                 color: inMonth ? (isSelected ? active : labelColor) : tertiary,
               ),
             ),
+            
+            // Event Indicators
             if (hasEvents)
-              Container(
-                width: 5,
-                height: 5,
-                margin: const EdgeInsets.only(top: 2),
-                decoration: BoxDecoration(
-                  color: isSelected ? active : active.withValues(alpha: 0.85),
-                  shape: BoxShape.circle,
+              Positioned(
+                bottom: 5,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(
+                    // Caps the dots at 3 so they don't overflow the circle
+                    eventCount.clamp(1, 3), 
+                    (index) => Container(
+                      width: 4,
+                      height: 4,
+                      margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                      decoration: BoxDecoration(
+                        color: isSelected ? active : active.withValues(alpha: 0.65),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
                 ),
               ),
           ],
