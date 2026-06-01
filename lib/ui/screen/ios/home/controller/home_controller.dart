@@ -101,10 +101,14 @@ class HomeController extends ChangeNotifier {
     notifyListeners();
   }
 
-  QuickLogHabit habitToQuickLogHabit(HabitWithEvents item) {
+  QuickLogHabit habitToQuickLogHabit(
+    HabitWithEvents item, {
+    DateTime? day,
+  }) {
+    final logDay = day ?? _focusDate;
     return QuickLogHabit.fromHabit(
       item.habit,
-      currentValue: item.getProgressForDay(_focusDate),
+      currentValue: item.getProgressForDay(logDay),
     );
   }
 

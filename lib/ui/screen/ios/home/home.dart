@@ -23,6 +23,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
   final ValueNotifier<double> _scrollOffset = ValueNotifier(0);
   final HomeController _controller = HomeController();
+  final GlobalKey<InfiniteWeeklyCalendarState> _weeklyCalendarKey =
+      GlobalKey<InfiniteWeeklyCalendarState>();
 
   final double _appBarHeight = 64.0;
   final double _calendarHeight = 150.0;
@@ -110,8 +112,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                         return HabitWeekMatrixCard(
                                           item: item,
                                           targetDate: _controller.focusDate,
-                                          onDayToggled: (day) => _controller
-                                              .toggleDay(item, day),
+                                          onDayTap: (day) => _handleWeekDayTap(
+                                            context,
+                                            item,
+                                            day,
+                                          ),
+                                          onWeekShift: (direction) {
+                                            _weeklyCalendarKey.currentState
+                                                ?.shiftWeek(direction);
+                                          },
                                           onTap: () {
                                             _controller
                                                 .selectHabit(item.habit.id);
@@ -185,6 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 child: SizedBox(
                                   height: _calendarHeight,
                                   child: InfiniteWeeklyCalendar(
+                                    key: _weeklyCalendarKey,
                                     viewMode: _controller.viewMode,
                                     onViewModeChanged: _controller.setViewMode,
                                     focusDate: _controller.focusDate,
@@ -215,8 +225,27 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showQuickLogModal(BuildContext context, HabitWithEvents item) {
-    final quickLogHabit = _controller.habitToQuickLogHabit(item);
+  void _handleWeekDayTap(
+    BuildContext context,
+    HabitWithEvents item,
+    DateTime day,
+  ) {
+    if (item.habit.isCheckmarkGoal) {
+      _controller.toggleDay(item, day);
+      return;
+    }
+
+    _controller.selectHabit(item.habit.id);
+    _showQuickLogModal(context, item, logDate: day);
+  }
+
+  void _showQuickLogModal(
+    BuildContext context,
+    HabitWithEvents item, {
+    DateTime? logDate,
+  }) {
+    final day = logDate ?? _controller.focusDate;
+    final quickLogHabit = _controller.habitToQuickLogHabit(item, day: day);
 
     showModalBottomSheet(
       context: context,
@@ -232,7 +261,7 @@ class _HomeScreenState extends State<HomeScreen> {
           }
           await _controller.persistProgress(
             item,
-            _controller.focusDate,
+            day,
             updatedValue,
           );
         },

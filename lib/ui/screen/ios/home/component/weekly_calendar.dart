@@ -24,10 +24,10 @@ class InfiniteWeeklyCalendar extends StatefulWidget {
   final Future<void> Function(HabitFormInput input)? onSaveHabit;
 
   @override
-  State<InfiniteWeeklyCalendar> createState() => _InfiniteWeeklyCalendarState();
+  State<InfiniteWeeklyCalendar> createState() => InfiniteWeeklyCalendarState();
 }
 
-class _InfiniteWeeklyCalendarState extends State<InfiniteWeeklyCalendar> {
+class InfiniteWeeklyCalendarState extends State<InfiniteWeeklyCalendar> {
   static const int _virtualCenter = 10000;
 
   late final PageController _pageController;
@@ -71,6 +71,22 @@ class _InfiniteWeeklyCalendarState extends State<InfiniteWeeklyCalendar> {
     }
     final start = anchor.subtract(const Duration(days: 6));
     return List.generate(7, (i) => start.add(Duration(days: i)));
+  }
+
+  /// [direction] `1` = older week (swipe left), `-1` = newer week (swipe right).
+  void shiftWeek(int direction) {
+    if (!_pageController.hasClients || direction == 0) return;
+
+    final current =
+        _pageController.page?.round() ?? _virtualCenter;
+    final target = current - direction;
+    if (target > _virtualCenter) return;
+
+    _pageController.animateToPage(
+      target,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _onWeekPageChanged(int index, DateTime today) {

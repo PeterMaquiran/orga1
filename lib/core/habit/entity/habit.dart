@@ -59,6 +59,8 @@ class HabitModel extends HiveObject {
     return activeDays[day.weekday - 1];
   }
 
+  bool get isCheckmarkGoal => goalType == 'checkmark';
+
   // --- MODEL COPIES (IMMUTABILITY) ---
   HabitModel copyWith({
     String? id,

@@ -4,15 +4,18 @@ import 'package:orga1/ui/screen/ios/home/models/habit_with_events.dart';
 class HabitWeekMatrixCard extends StatelessWidget {
   final HabitWithEvents item;
   final DateTime targetDate;
-  final Function(DateTime day) onDayToggled;
+  final ValueChanged<DateTime> onDayTap;
   final VoidCallback? onTap;
+  /// `1` = previous week, `-1` = next week (when user swipes horizontally).
+  final ValueChanged<int>? onWeekShift;
 
   const HabitWeekMatrixCard({
     super.key,
     required this.item,
     required this.targetDate,
-    required this.onDayToggled,
+    required this.onDayTap,
     this.onTap,
+    this.onWeekShift,
   });
 
   @override
@@ -26,7 +29,18 @@ class HabitWeekMatrixCard extends StatelessWidget {
     final DateTime rollingStartDay =
         focusDayNormalized.subtract(const Duration(days: 6));
 
-    return Container(
+    return GestureDetector(
+      onHorizontalDragEnd: onWeekShift == null
+          ? null
+          : (details) {
+              final velocity = details.primaryVelocity ?? 0;
+              if (velocity < -200) {
+                onWeekShift!(-1);
+              } else if (velocity > 200) {
+                onWeekShift!(1);
+              }
+            },
+      child: Container(
       margin: const EdgeInsets.only(bottom: 12, left: 16, right: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -88,8 +102,15 @@ class HabitWeekMatrixCard extends StatelessWidget {
                 final DateTime currentCellDay =
                     rollingStartDay.add(Duration(days: index));
                 final bool isScheduled = habit.isActiveOnDay(currentCellDay);
+                final double dayProgress = isScheduled
+                    ? item.getProgressForDay(currentCellDay)
+                    : 0;
+                final double dayProgressRatio = isScheduled
+                    ? item.getCompletionRatioForDay(currentCellDay)
+                    : 0;
                 final bool isDayCompleted =
                     isScheduled && item.isCompletedOnDay(currentCellDay);
+                final bool isCheckmark = habit.isCheckmarkGoal;
                 final bool isFocusDay =
                     currentCellDay.isAtSameMomentAs(focusDayNormalized);
                 final bool isActualToday =
@@ -119,7 +140,7 @@ class HabitWeekMatrixCard extends StatelessWidget {
                       const SizedBox(height: 6),
                       GestureDetector(
                         onTap: isScheduled
-                            ? () => onDayToggled(currentCellDay)
+                            ? () => onDayTap(currentCellDay)
                             : null,
                         behavior: HitTestBehavior.opaque,
                         child: Padding(
@@ -127,8 +148,7 @@ class HabitWeekMatrixCard extends StatelessWidget {
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 150),
                             padding: const EdgeInsets.all(2),
-                            decoration: isScheduled &&
-                                    isFocusDay
+                            decoration: isScheduled && isFocusDay
                                 ? BoxDecoration(
                                     shape: BoxShape.circle,
                                     border: Border.all(
@@ -137,20 +157,14 @@ class HabitWeekMatrixCard extends StatelessWidget {
                                     ),
                                   )
                                 : null,
-                            child: Icon(
-                              !isScheduled
-                                  ? Icons.radio_button_unchecked
-                                  : isDayCompleted
-                                      ? Icons.check_circle_rounded
-                                      : Icons.radio_button_unchecked,
-                              color: !isScheduled
-                                  ? Colors.black.withOpacity(0.08)
-                                  : isDayCompleted
-                                      ? Colors.green.shade400
-                                      : isFocusDay
-                                          ? habit.color.withOpacity(0.3)
-                                          : Colors.black12,
-                              size: 24,
+                            child: _WeekDayCellIndicator(
+                              isScheduled: isScheduled,
+                              isCheckmark: isCheckmark,
+                              isCompleted: isDayCompleted,
+                              isFocusDay: isFocusDay,
+                              progress: dayProgress,
+                              progressRatio: dayProgressRatio,
+                              color: habit.color,
                             ),
                           ),
                         ),
@@ -160,6 +174,90 @@ class HabitWeekMatrixCard extends StatelessWidget {
                 );
             }),
           ),
+        ],
+      ),
+    ),
+    );
+  }
+}
+
+class _WeekDayCellIndicator extends StatelessWidget {
+  const _WeekDayCellIndicator({
+    required this.isScheduled,
+    required this.isCheckmark,
+    required this.isCompleted,
+    required this.isFocusDay,
+    required this.progress,
+    required this.progressRatio,
+    required this.color,
+  });
+
+  final bool isScheduled;
+  final bool isCheckmark;
+  final bool isCompleted;
+  final bool isFocusDay;
+  final double progress;
+  final double progressRatio;
+  final Color color;
+
+  String _formatValue(double value) {
+    return value % 1 == 0 ? value.toInt().toString() : value.toStringAsFixed(1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isScheduled) {
+      return Icon(
+        Icons.radio_button_unchecked,
+        color: Colors.black.withOpacity(0.08),
+        size: 24,
+      );
+    }
+
+    if (isCheckmark) {
+      return Icon(
+        isCompleted ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+        color: isCompleted
+            ? Colors.green.shade400
+            : isFocusDay
+                ? color.withOpacity(0.3)
+                : Colors.black12,
+        size: 24,
+      );
+    }
+
+    if (isCompleted) {
+      return Icon(
+        Icons.check_circle_rounded,
+        color: Colors.green.shade400,
+        size: 24,
+      );
+    }
+
+    return SizedBox(
+      width: 26,
+      height: 26,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CircularProgressIndicator(
+              value: progressRatio.clamp(0.0, 1.0),
+              strokeWidth: 2.5,
+              backgroundColor: Colors.black.withOpacity(0.08),
+              valueColor: AlwaysStoppedAnimation(
+                isFocusDay ? color : color.withOpacity(0.55),
+              ),
+          ),
+          if (progress > 0)
+            Text(
+              _formatValue(progress),
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: isFocusDay ? color : Colors.black54,
+                height: 1,
+              ),
+            ),
         ],
       ),
     );
