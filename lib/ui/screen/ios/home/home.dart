@@ -200,6 +200,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                     focusDate: _controller.focusDate,
                                     onFocusDateChanged: _controller.setFocusDate,
                                     onSaveHabit: _controller.saveHabit,
+                                    dayProgressRatio:
+                                        _controller.calendarProgressRatioForDay,
                                   ),
                                 ),
                               ),

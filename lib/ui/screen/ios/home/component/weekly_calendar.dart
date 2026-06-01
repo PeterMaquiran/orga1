@@ -15,6 +15,7 @@ class InfiniteWeeklyCalendar extends StatefulWidget {
     required this.focusDate,
     required this.onFocusDateChanged,
     this.onSaveHabit,
+    this.dayProgressRatio,
   });
 
   final HomeViewMode viewMode;
@@ -22,6 +23,8 @@ class InfiniteWeeklyCalendar extends StatefulWidget {
   final DateTime focusDate;
   final ValueChanged<DateTime> onFocusDateChanged;
   final Future<void> Function(HabitFormInput input)? onSaveHabit;
+  /// Returns `null` when no progress ring should be shown for that day.
+  final double? Function(DateTime day)? dayProgressRatio;
 
   @override
   State<InfiniteWeeklyCalendar> createState() => InfiniteWeeklyCalendarState();
@@ -40,12 +43,32 @@ class InfiniteWeeklyCalendarState extends State<InfiniteWeeklyCalendar> {
     _headerDate = ValueNotifier(widget.focusDate);
   }
 
+  bool get _isWeekView => widget.viewMode == HomeViewMode.week;
+
   @override
   void didUpdateWidget(InfiniteWeeklyCalendar oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!_sameDay(oldWidget.focusDate, widget.focusDate)) {
       _headerDate.value = widget.focusDate;
     }
+    if (oldWidget.viewMode != widget.viewMode && _isWeekView) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _syncWeekViewFocusToAnchor();
+      });
+    }
+  }
+
+  void _syncWeekViewFocusToAnchor() {
+    if (!_isWeekView || !_pageController.hasClients) return;
+    final today = DateTime.now();
+    final index = _pageController.page?.round() ?? _virtualCenter;
+    final anchor = _getRollingWindowForIndex(index, today).last;
+    if (_sameDay(anchor, widget.focusDate)) {
+      _headerDate.value = anchor;
+      return;
+    }
+    _headerDate.value = anchor;
+    widget.onFocusDateChanged(anchor);
   }
 
   @override
@@ -101,11 +124,16 @@ class InfiniteWeeklyCalendarState extends State<InfiniteWeeklyCalendar> {
 
     final window = _getRollingWindowForIndex(index, today);
     final anchor = window.last;
-    final focus = window.any((d) => _sameDay(d, widget.focusDate))
-        ? widget.focusDate
-        : anchor;
+    // Week view: anchor is always the rightmost day so every cell keeps progress data in range.
+    final focus = _isWeekView
+        ? anchor
+        : (window.any((d) => _sameDay(d, widget.focusDate))
+            ? widget.focusDate
+            : anchor);
     _headerDate.value = focus;
-    widget.onFocusDateChanged(focus);
+    if (!_sameDay(focus, widget.focusDate)) {
+      widget.onFocusDateChanged(focus);
+    }
   }
 
   Widget _buildRollingWeekdayHeader(
@@ -273,13 +301,18 @@ class InfiniteWeeklyCalendarState extends State<InfiniteWeeklyCalendar> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: window.map((date) {
+                      final anchor = window.last;
                       final isToday = _sameDay(date, todayDay);
-                      final isSelected = _sameDay(date, widget.focusDate);
+                      final isSelected = _isWeekView
+                          ? _sameDay(date, anchor)
+                          : _sameDay(date, widget.focusDate);
                       return _buildDayCard(
                         context,
                         date,
                         isToday: isToday,
                         isSelected: isSelected,
+                        progressRatio: widget.dayProgressRatio?.call(date),
+                        allowSelection: !_isWeekView,
                       );
                     }).toList(),
                   ),
@@ -297,41 +330,75 @@ class InfiniteWeeklyCalendarState extends State<InfiniteWeeklyCalendar> {
     DateTime date, {
     required bool isToday,
     required bool isSelected,
+    double? progressRatio,
+    bool allowSelection = true,
   }) {
     final active = CupertinoColors.activeBlue.resolveFrom(context);
     final labelColor = CupertinoColors.label.resolveFrom(context);
+    final isWeekView = widget.viewMode == HomeViewMode.week;
+    final double? effectiveRatio =
+        isWeekView ? (progressRatio ?? 0.0) : progressRatio;
+    final showProgress = effectiveRatio != null;
+    final ratio = effectiveRatio ?? 0.0;
+    final isComplete = showProgress && ratio >= 1.0;
 
     return GestureDetector(
-      onTap: () {
-        final normalized = _normalize(date);
-        _headerDate.value = normalized;
-        widget.onFocusDateChanged(normalized);
-      },
-      child: Container(
+      onTap: allowSelection
+          ? () {
+              final normalized = _normalize(date);
+              _headerDate.value = normalized;
+              widget.onFocusDateChanged(normalized);
+            }
+          : null,
+      child: SizedBox(
         width: 35,
         height: 35,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: isSelected
-                ? active
-                : const Color(0xFF3C3C43).withValues(alpha: 0.12),
-            width: isSelected ? 1.5 : 1,
-          ),
-          color: isToday
-              ? active.withValues(alpha: 0.05)
-              : CupertinoColors.systemBackground.resolveFrom(context),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            Text(
-              date.day.toString(),
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.08,
-                color: isToday || isSelected ? active : labelColor,
+            if (showProgress)
+              SizedBox(
+                width: 35,
+                height: 35,
+                child: CircularProgressIndicator(
+                  value: ratio.clamp(0.0, 1.0),
+                  strokeWidth: 2.5,
+                  backgroundColor: const Color(0xFF3C3C43).withValues(alpha: 0.1),
+                  valueColor: AlwaysStoppedAnimation(
+                    isComplete ? const Color(0xFF34C759) : active,
+                  ),
+                ),
+              ),
+            Container(
+              width: 29,
+              height: 29,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: showProgress
+                    ? null
+                    : Border.all(
+                        color: isSelected
+                            ? active
+                            : const Color(0xFF3C3C43).withValues(alpha: 0.12),
+                        width: isSelected ? 1.5 : 1,
+                      ),
+                color: isToday
+                    ? active.withValues(alpha: 0.05)
+                    : CupertinoColors.systemBackground.resolveFrom(context),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                date.day.toString(),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.08,
+                  color: isToday || isSelected
+                      ? active
+                      : isComplete
+                          ? const Color(0xFF34C759)
+                          : labelColor,
+                ),
               ),
             ),
           ],

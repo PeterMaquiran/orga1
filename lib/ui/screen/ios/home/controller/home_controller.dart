@@ -45,17 +45,34 @@ class HomeController extends ChangeNotifier {
 
   ({DateTime start, DateTime end}) _eventRangeForMode() {
     final focus = _normalizeDate(_focusDate);
-    if (_viewMode == HomeViewMode.week) {
-      final start = focus.subtract(const Duration(days: 6));
-      return (
-        start: start,
-        end: DateTime(focus.year, focus.month, focus.day, 23, 59, 59),
-      );
-    }
+    // Always load the rolling 7-day window so the calendar strip has progress data.
+    final start = focus.subtract(const Duration(days: 6));
     return (
-      start: focus,
+      start: start,
       end: DateTime(focus.year, focus.month, focus.day, 23, 59, 59),
     );
+  }
+
+  /// Average completion across habits scheduled on [day].
+  double? calendarProgressRatioForDay(DateTime day) {
+    final normalized = _normalizeDate(day);
+    final isWeekView = _viewMode == HomeViewMode.week;
+
+    if (!isWeekView && normalized != _normalizeDate(_focusDate)) {
+      return null;
+    }
+
+    final scheduled =
+        _habits.where((item) => item.habit.isActiveOnDay(normalized));
+    if (scheduled.isEmpty) {
+      return isWeekView ? 0.0 : null;
+    }
+
+    final sum = scheduled.fold<double>(
+      0,
+      (total, item) => total + item.getCompletionRatioForDay(normalized),
+    );
+    return (sum / scheduled.length).clamp(0.0, 1.0);
   }
 
   Future<void> _loadHabits() async {
@@ -81,6 +98,10 @@ class HomeController extends ChangeNotifier {
   Future<void> setViewMode(HomeViewMode mode) async {
     if (_viewMode == mode) return;
     _viewMode = mode;
+    if (mode == HomeViewMode.week) {
+      final now = DateTime.now();
+      _focusDate = DateTime(now.year, now.month, now.day);
+    }
     _loadingHabits = true;
     notifyListeners();
     await _loadHabits();
