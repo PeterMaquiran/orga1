@@ -19,10 +19,12 @@ class HabitWeekMatrixCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final habit = item.habit;
 
-    final todayNormalized =
+    final focusDayNormalized =
         DateTime(targetDate.year, targetDate.month, targetDate.day);
+    final now = DateTime.now();
+    final realTodayNormalized = DateTime(now.year, now.month, now.day);
     final DateTime rollingStartDay =
-        todayNormalized.subtract(const Duration(days: 6));
+        focusDayNormalized.subtract(const Duration(days: 6));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12, left: 16, right: 16),
@@ -88,8 +90,10 @@ class HabitWeekMatrixCard extends StatelessWidget {
                 final bool isScheduled = habit.isActiveOnDay(currentCellDay);
                 final bool isDayCompleted =
                     isScheduled && item.isCompletedOnDay(currentCellDay);
-                final bool isCurrentTargetDay =
-                    currentCellDay.isAtSameMomentAs(todayNormalized);
+                final bool isFocusDay =
+                    currentCellDay.isAtSameMomentAs(focusDayNormalized);
+                final bool isActualToday =
+                    currentCellDay.isAtSameMomentAs(realTodayNormalized);
                 const manualWeekDays = [
                   "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"
                 ];
@@ -101,13 +105,13 @@ class HabitWeekMatrixCard extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        isCurrentTargetDay ? "TODAY" : dayLabel,
+                        isActualToday ? "TODAY" : dayLabel,
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                           color: !isScheduled
                               ? Colors.black.withOpacity(0.12)
-                              : isCurrentTargetDay
+                              : isFocusDay
                                   ? habit.color
                                   : Colors.black.withOpacity(0.35),
                         ),
@@ -124,7 +128,7 @@ class HabitWeekMatrixCard extends StatelessWidget {
                             duration: const Duration(milliseconds: 150),
                             padding: const EdgeInsets.all(2),
                             decoration: isScheduled &&
-                                    isCurrentTargetDay
+                                    isFocusDay
                                 ? BoxDecoration(
                                     shape: BoxShape.circle,
                                     border: Border.all(
@@ -143,7 +147,7 @@ class HabitWeekMatrixCard extends StatelessWidget {
                                   ? Colors.black.withOpacity(0.08)
                                   : isDayCompleted
                                       ? Colors.green.shade400
-                                      : isCurrentTargetDay
+                                      : isFocusDay
                                           ? habit.color.withOpacity(0.3)
                                           : Colors.black12,
                               size: 24,
