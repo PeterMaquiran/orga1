@@ -32,6 +32,10 @@ class InfiniteWeeklyCalendar extends StatefulWidget {
 
 class InfiniteWeeklyCalendarState extends State<InfiniteWeeklyCalendar> {
   static const int _virtualCenter = 10000;
+  static const double _dayCellSize = 40;
+  static const double _weekdayHeaderHeight = 28;
+  static const double _weekStripHeight =
+      _weekdayHeaderHeight + _dayCellSize + 6;
 
   late final PageController _pageController;
   late final ValueNotifier<DateTime> _headerDate;
@@ -146,13 +150,11 @@ class InfiniteWeeklyCalendarState extends State<InfiniteWeeklyCalendar> {
     const labels = OrgaCalendarDateUtils.weekdayLabels;
 
     return SizedBox(
-      height: 40,
+      height: _weekdayHeaderHeight,
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: days.map((date) {
           final isToday = _sameDay(date, todayDay);
-          return SizedBox(
-            width: OrgaCalendarDateUtils.monthGridRowExtent,
+          return Expanded(
             child: Text(
               labels[date.weekday - 1],
               textAlign: TextAlign.center,
@@ -289,32 +291,41 @@ class InfiniteWeeklyCalendarState extends State<InfiniteWeeklyCalendar> {
           ),
         ),
         SizedBox(
-          height: 79,
+          height: _weekStripHeight,
           child: PageView.builder(
             controller: _pageController,
+            clipBehavior: Clip.none,
             onPageChanged: (i) => _onWeekPageChanged(i, today),
             itemBuilder: (context, index) {
               final window = _getRollingWindowForIndex(index, today);
               return Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   _buildRollingWeekdayHeader(context, window, todayDay),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: window.map((date) {
-                      final anchor = window.last;
-                      final isToday = _sameDay(date, todayDay);
-                      final isSelected = _isWeekView
-                          ? _sameDay(date, anchor)
-                          : _sameDay(date, widget.focusDate);
-                      return _buildDayCard(
-                        context,
-                        date,
-                        isToday: isToday,
-                        isSelected: isSelected,
-                        progressRatio: widget.dayProgressRatio?.call(date),
-                        allowSelection: !_isWeekView,
-                      );
-                    }).toList(),
+                  SizedBox(
+                    height: _dayCellSize,
+                    child: Row(
+                      children: window.map((date) {
+                        final anchor = window.last;
+                        final isToday = _sameDay(date, todayDay);
+                        final isSelected = _isWeekView
+                            ? _sameDay(date, anchor)
+                            : _sameDay(date, widget.focusDate);
+                        return Expanded(
+                          child: Center(
+                            child: _buildDayCard(
+                              context,
+                              date,
+                              isToday: isToday,
+                              isSelected: isSelected,
+                              progressRatio:
+                                  widget.dayProgressRatio?.call(date),
+                              allowSelection: !_isWeekView,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ),
                 ],
               );
@@ -351,27 +362,32 @@ class InfiniteWeeklyCalendarState extends State<InfiniteWeeklyCalendar> {
             }
           : null,
       child: SizedBox(
-        width: 35,
-        height: 35,
+        width: _dayCellSize,
+        height: _dayCellSize,
         child: Stack(
           alignment: Alignment.center,
+          clipBehavior: Clip.none,
           children: [
             if (showProgress)
               SizedBox(
-                width: 35,
-                height: 35,
-                child: CircularProgressIndicator(
-                  value: ratio.clamp(0.0, 1.0),
-                  strokeWidth: 2.5,
-                  backgroundColor: const Color(0xFF3C3C43).withValues(alpha: 0.1),
-                  valueColor: AlwaysStoppedAnimation(
-                    isComplete ? const Color(0xFF34C759) : active,
+                width: _dayCellSize,
+                height: _dayCellSize,
+                child: Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: CircularProgressIndicator(
+                    value: ratio.clamp(0.0, 1.0),
+                    strokeWidth: 2.5,
+                    backgroundColor:
+                        const Color(0xFF3C3C43).withValues(alpha: 0.1),
+                    valueColor: AlwaysStoppedAnimation(
+                      isComplete ? const Color(0xFF34C759) : active,
+                    ),
                   ),
                 ),
               ),
             Container(
-              width: 29,
-              height: 29,
+              width: _dayCellSize - 10,
+              height: _dayCellSize - 10,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: showProgress
