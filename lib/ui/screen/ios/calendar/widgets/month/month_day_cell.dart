@@ -37,7 +37,7 @@ class MonthDayCell extends StatelessWidget {
                     ? active
                     : isToday
                         ? active.withValues(alpha: 0.08)
-                        : bg,
+                        : Colors.transparent,
           shape: BoxShape.circle,
           border: isToday && !isSelected
               ? Border.all(color: active.withValues(alpha: 0.55), width: 1.5)
@@ -57,7 +57,9 @@ class MonthDayCell extends StatelessWidget {
                     ? CupertinoColors.white
                     : isToday
                         ? active
-                        : labelColor,
+                        : inMonth
+                        ? labelColor
+                        : tertiary,
               ),
             ),
             

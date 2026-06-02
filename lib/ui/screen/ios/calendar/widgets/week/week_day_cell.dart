@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 
 class CalendarWeekDayCell extends StatelessWidget {
   const CalendarWeekDayCell({
@@ -40,7 +41,7 @@ class CalendarWeekDayCell extends StatelessWidget {
                     ? active
                     : isToday
                         ? active.withValues(alpha: 0.08)
-                        : bg,
+                        : Colors.transparent,
                 border: isToday && !isSelected
               ? Border.all(color: active.withValues(alpha: 0.55), width: 1.5)
               : null,
