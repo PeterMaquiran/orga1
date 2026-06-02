@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:orga1/module/event/event_service.dart';
 
 import '../logic/calendar_date_utils.dart';
 import '../logic/orga_calendar_controller.dart';
@@ -14,14 +15,12 @@ class OrgaWeekMonthCalendar extends StatefulWidget {
     required this.onDateChanged,
     this.onDisplayedMonthChanged,
     this.monthViewNotifier,
-    this.eventDates = const {},
   });
 
   final DateTime selected;
   final ValueChanged<DateTime> onDateChanged;
   final ValueChanged<DateTime>? onDisplayedMonthChanged;
   final ValueNotifier<bool>? monthViewNotifier;
-  final Set<DateTime> eventDates;
 
   @override
   State<OrgaWeekMonthCalendar> createState() => _OrgaWeekMonthCalendarState();
@@ -83,6 +82,7 @@ class _OrgaWeekMonthCalendarState extends State<OrgaWeekMonthCalendar> {
   }
 
   void _onControllerChanged() {
+    print('onControllerChanged');
     if (_controller.selected != _lastReportedSelected) {
       _lastReportedSelected = _controller.selected;
       widget.onDateChanged(_controller.selected);
@@ -132,31 +132,36 @@ class _OrgaWeekMonthCalendarState extends State<OrgaWeekMonthCalendar> {
             duration: _kTransition,
             curve: Curves.easeInOutCubicEmphasized,
             alignment: Alignment.topCenter,
-            child: _controller.monthView
-                ?  OrgaMonthCalendar(
-                    selected: _controller.selected,
-                    monthPageController: _controller.monthPageController,
-                    eventDates: widget.eventDates,
-                    onSelectDay: (d) {
-                      _emit(d);
-                      _controller.syncToSelectedMonth(animate: true);
+            child: ValueListenableBuilder(
+              valueListenable: EventService.listenFromHive(), 
+              builder: (context, value, _) {
+                return _controller.monthView
+                  ? OrgaMonthCalendar(
+                      selected: _controller.selected,
+                      monthPageController: _controller.monthPageController,
+                      eventDates: _controller.eventDates, 
+                      onSelectDay: (d) {
+                        _emit(d);
+                        _controller.syncToSelectedMonth(animate: true);
+                      },
+                      onPageChanged: _controller.onMonthPageChanged,
+                      monthForPage: _controller.monthForPage,
+                    )
+                    : CalendarWeekStrip(
+                        today: today,
+                        selected: _controller.selected,
+                        pageController: _controller.weekPageController,
+                        weekDaysForPage: _controller.weekDaysForPage,
+                        eventDates: _controller.eventDates,
+                        onWeekPageChanged: (i) {
+                          final day = _controller.selectedForWeekPage(i);
+                          if (day == _controller.selected) return;
+                          _emit(day);
+                        },
+                        onDayTap: _emit,
+                      );
                     },
-                    onPageChanged: _controller.onMonthPageChanged,
-                    monthForPage: _controller.monthForPage,
                   )
-                : CalendarWeekStrip(
-                  today: today,
-                  selected: _controller.selected,
-                  pageController: _controller.weekPageController,
-                  weekDaysForPage: _controller.weekDaysForPage,
-                  eventDates: widget.eventDates,
-                  onWeekPageChanged: (i) {
-                    final day = _controller.selectedForWeekPage(i);
-                    if (day == _controller.selected) return;
-                    _emit(day);
-                  },
-                  onDayTap: _emit,
-                ),
           ),
         ),
       ],

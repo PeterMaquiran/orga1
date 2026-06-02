@@ -479,7 +479,6 @@ class _CalendarPinnedHeader extends StatelessWidget {
                   OrgaWeekMonthCalendar(
                     monthViewNotifier: monthViewNotifier,
                     selected: controller.selected,
-                    eventDates: controller.eventDates,
                     onDisplayedMonthChanged: controller.setDisplayedMonth,
                     onDateChanged: onDateChanged,
                   ),

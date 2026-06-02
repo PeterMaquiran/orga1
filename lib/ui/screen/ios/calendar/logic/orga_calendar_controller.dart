@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:orga1/module/event/event_service.dart';
+import 'package:orga1/ui/screen/ios/calendar/logic/calendar_event_expander.dart';
+import 'package:orga1/ui/screen/ios/calendar/models/stored_calendar_event.dart';
 
 import 'calendar_date_utils.dart';
 
 class OrgaCalendarController extends ChangeNotifier {
+  List<StoredCalendarEvent> _events = [];
+
   OrgaCalendarController({
     required DateTime initialSelected,
     bool initialMonthView = false,
@@ -12,8 +17,21 @@ class OrgaCalendarController extends ChangeNotifier {
     _monthAnchor = _displayedMonth;
     weekPageController = PageController(initialPage: virtualCenter);
     monthPageController = PageController(initialPage: virtualCenter);
+
+    EventService.listenFromHive().addListener(() {
+      notifyListeners();
+    });
   }
 
+  Set<DateTime> get eventDates  {
+    _events = EventService.getAll();
+    final rangeStart =
+        DateTime(_displayedMonth.year, _displayedMonth.month - 1, 1);
+    final rangeEnd =
+        DateTime(_displayedMonth.year, _displayedMonth.month + 2, 0);
+    return CalendarEventExpander.datesWithEvents(_events, rangeStart, rangeEnd);
+  }
+  
   static const int virtualCenter = 10000;
 
   late final PageController weekPageController;
@@ -152,6 +170,9 @@ class OrgaCalendarController extends ChangeNotifier {
   void dispose() {
     weekPageController.dispose();
     monthPageController.dispose();
+    EventService.listenFromHive().removeListener(() {
+      notifyListeners();
+    });
     super.dispose();
   }
 }

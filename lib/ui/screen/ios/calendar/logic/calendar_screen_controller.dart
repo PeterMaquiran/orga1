@@ -33,13 +33,7 @@ class CalendarScreenController extends ChangeNotifier {
   CalendarEventListMode get listMode => _listMode;
   List<StoredCalendarEvent> get events => _events;
 
-  Set<DateTime> get eventDates {
-    final rangeStart =
-        DateTime(_displayedMonth.year, _displayedMonth.month - 1, 1);
-    final rangeEnd =
-        DateTime(_displayedMonth.year, _displayedMonth.month + 2, 0);
-    return CalendarEventExpander.datesWithEvents(_events, rangeStart, rangeEnd);
-  }
+
 
   void setMonthView(bool monthView) {
     if (_monthView == monthView) return;

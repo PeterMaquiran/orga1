@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../../ui/screen/ios/calendar/models/stored_calendar_event.dart';
@@ -11,7 +14,7 @@ class CalendarEventRepository {
 
   Box get box => _box ?? Hive.box(boxName);
 
-  Future<List<StoredCalendarEvent>> getAll() async {
+  List<StoredCalendarEvent> getAll() {
     return box.values
         .map(
           (raw) => StoredCalendarEvent.fromMap(
@@ -28,4 +31,7 @@ class CalendarEventRepository {
   Future<void> delete(String id) async {
     await box.delete(id);
   }
+
+    /// ✅ This is already reactive
+  ValueListenable<Box> get listenable => box.listenable();
 }
