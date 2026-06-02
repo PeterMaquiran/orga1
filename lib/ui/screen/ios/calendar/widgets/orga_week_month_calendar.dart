@@ -28,7 +28,7 @@ class OrgaWeekMonthCalendar extends StatefulWidget {
 }
 
 class _OrgaWeekMonthCalendarState extends State<OrgaWeekMonthCalendar> {
-  static const Duration _kTransition = Duration(milliseconds: 400);
+  static const Duration _kTransition = Duration(milliseconds: 500);
 
   late OrgaCalendarController _controller;
   VoidCallback? _externalViewListener;
@@ -123,45 +123,40 @@ class _OrgaWeekMonthCalendarState extends State<OrgaWeekMonthCalendar> {
 
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        WeekdayHeaderRow(highlightedColumnIndex: selectedColumn),
+        WeekdayHeaderRow(
+          highlightedColumnIndex: selectedColumn,
+        ),
         ClipRect(
-          child: AnimatedCrossFade(
+          child: AnimatedSize(
             duration: _kTransition,
-            reverseDuration: _kTransition,
-            sizeCurve: Curves.easeInOutCubicEmphasized,
-            firstCurve: Curves.easeOutCubic,
-            secondCurve: Curves.easeInCubic,
+            curve: Curves.easeInOutCubicEmphasized,
             alignment: Alignment.topCenter,
-            crossFadeState: _controller.monthView
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            firstChild: CalendarWeekStrip(
-              today: today,
-              selected: _controller.selected,
-              pageController: _controller.weekPageController,
-              weekDaysForPage: _controller.weekDaysForPage,
-              eventDates: widget.eventDates,
-              onWeekPageChanged: (i) {
-                final day = _controller.selectedForWeekPage(i);
-                if (day == _controller.selected) return;
-                _emit(day);
-              },
-              onDayTap: _emit,
-            ),
-            secondChild: OrgaMonthCalendar(
-              selected: _controller.selected,
-              monthPageController: _controller.monthPageController,
-              eventDates: widget.eventDates,
-              onSelectDay: (d) {
-                _emit(d);
-                _controller.syncToSelectedMonth(animate: true);
-              },
-              onPageChanged: _controller.onMonthPageChanged,
-              monthForPage: _controller.monthForPage,
-            ),
+            child: _controller.monthView
+                ?  OrgaMonthCalendar(
+                    selected: _controller.selected,
+                    monthPageController: _controller.monthPageController,
+                    eventDates: widget.eventDates,
+                    onSelectDay: (d) {
+                      _emit(d);
+                      _controller.syncToSelectedMonth(animate: true);
+                    },
+                    onPageChanged: _controller.onMonthPageChanged,
+                    monthForPage: _controller.monthForPage,
+                  )
+                : CalendarWeekStrip(
+                  today: today,
+                  selected: _controller.selected,
+                  pageController: _controller.weekPageController,
+                  weekDaysForPage: _controller.weekDaysForPage,
+                  eventDates: widget.eventDates,
+                  onWeekPageChanged: (i) {
+                    final day = _controller.selectedForWeekPage(i);
+                    if (day == _controller.selected) return;
+                    _emit(day);
+                  },
+                  onDayTap: _emit,
+                ),
           ),
         ),
       ],
