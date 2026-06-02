@@ -1,7 +1,5 @@
 import 'package:flutter/cupertino.dart';
 
-import '../../logic/calendar_date_utils.dart';
-
 class CalendarWeekDayCell extends StatelessWidget {
   const CalendarWeekDayCell({
     super.key,
@@ -22,44 +20,61 @@ class CalendarWeekDayCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final active = CupertinoColors.activeBlue.resolveFrom(context);
     final labelColor = CupertinoColors.label.resolveFrom(context);
-    final highlight = isToday || isSelected;
+    final bg = CupertinoColors.systemBackground.resolveFrom(context);
 
     return CupertinoButton(
       padding: EdgeInsets.zero,
       minimumSize: Size.zero,
       onPressed: onTap,
-      child: Container(
-        width: OrgaCalendarDateUtils.monthGridRowExtent,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: const Color(0xFF3C3C43).withOpacity(0.12),
-            width: 1,
-          ),
-          color: isToday
-              ? active.withOpacity(0.05)
-              : CupertinoColors.systemBackground.resolveFrom(context),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      child: SizedBox(
+        width: 40,
+        height: 40,
+        child: Stack(
+          alignment: Alignment.center,
           children: [
+            // Background circle (selection / today)
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isSelected
+                    ? active
+                    : isToday
+                        ? active.withValues(alpha: 0.08)
+                        : bg,
+                border: isToday && !isSelected
+              ? Border.all(color: active.withValues(alpha: 0.55), width: 1.5)
+              : null,
+              ),
+            ),
+
+            // Day number
             Text(
               '${date.day}',
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -0.2,
-                color: highlight ? active : labelColor,
+                color: isSelected
+                    ? CupertinoColors.white
+                    : isToday
+                        ? active
+                        : labelColor,
               ),
             ),
+
+            // Event dot
             if (hasEvents)
-              Container(
-                width: 5,
-                height: 5,
-                margin: const EdgeInsets.only(top: 2),
-                decoration: BoxDecoration(
-                  color: active.withValues(alpha: 0.85),
-                  shape: BoxShape.circle,
+              Positioned(
+                bottom: 6,
+                child: Container(
+                  width: 4,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isSelected
+                        ? CupertinoColors.white
+                        : active.withValues(alpha: 0.7),
+                  ),
                 ),
               ),
           ],

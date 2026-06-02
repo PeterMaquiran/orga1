@@ -26,13 +26,18 @@ class MonthDayCell extends StatelessWidget {
     final active = CupertinoColors.activeBlue.resolveFrom(context);
     final labelColor = CupertinoColors.label.resolveFrom(context);
     final tertiary = CupertinoColors.tertiaryLabel.resolveFrom(context);
+    final bg = CupertinoColors.systemBackground.resolveFrom(context);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: isSelected ? active.withValues(alpha: 0.18) : Colors.transparent,
+          color: isSelected
+                    ? active
+                    : isToday
+                        ? active.withValues(alpha: 0.08)
+                        : bg,
           shape: BoxShape.circle,
           border: isToday && !isSelected
               ? Border.all(color: active.withValues(alpha: 0.55), width: 1.5)
@@ -48,7 +53,11 @@ class MonthDayCell extends StatelessWidget {
                 fontSize: 15,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                 letterSpacing: -0.2,
-                color: inMonth ? (isSelected ? active : labelColor) : tertiary,
+                color: isSelected
+                    ? CupertinoColors.white
+                    : isToday
+                        ? active
+                        : labelColor,
               ),
             ),
             
@@ -67,7 +76,7 @@ class MonthDayCell extends StatelessWidget {
                       height: 4,
                       margin: const EdgeInsets.symmetric(horizontal: 1.5),
                       decoration: BoxDecoration(
-                        color: isSelected ? active : active.withValues(alpha: 0.65),
+                        color: isSelected ? Colors.white : active.withValues(alpha: 0.7),
                         shape: BoxShape.circle,
                       ),
                     ),
