@@ -1,9 +1,7 @@
 import 'dart:ui';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:orga1/ui/shared/menu-achor.dart';
-
 import '../../../shared/appbar.dart';
 import '../../../shared/navigationBar.dart';
 import 'component/create-event.dart';
@@ -26,14 +24,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
   late CalendarScreenController _controller;
   late ValueNotifier<bool> _monthViewNotifier;
   late final ScrollController _scrollController;
+  late final ValueNotifier<double> _scrollOffset;
   final GlobalKey<CalendarEventListState> _eventListKey =
       GlobalKey<CalendarEventListState>();
+
+
+  bool _fingerDown = false;
+  bool _isUserScrolling = false;
+
+  bool get _isUserInteracting => _fingerDown;
 
   @override
   void initState() {
     super.initState();
     _controller = CalendarScreenController();
     _scrollController = ScrollController();
+    _scrollOffset = ValueNotifier(0);
 
     calendarView.value = CalendarView.month;
     _monthViewNotifier = ValueNotifier(calendarView.value == CalendarView.month);
@@ -47,18 +53,28 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   void _onScroll() {
     if (!_scrollController.hasClients) return;
-
+    //if (_ignoreScrollEvents) return;
     final offset = _scrollController.offset;
 
-    if (offset > 0 && calendarView.value == CalendarView.month) {
-      if(calendarView.value != CalendarView.week) {
-        calendarView.value = CalendarView.week;
-      }
+    if (_scrollOffset.value != offset) {
+      _scrollOffset.value = offset;
     }
+
+    if (!_isUserInteracting) return;
 
     if (offset <= 0 && calendarView.value == CalendarView.week) {
       if(calendarView.value != CalendarView.month) {
         calendarView.value = CalendarView.month;
+      }
+    }
+
+    
+    if (_scrollController.position.isScrollingNotifier.value){
+
+      if (offset > 0 && calendarView.value == CalendarView.month) {
+        if(calendarView.value != CalendarView.week) {
+          calendarView.value = CalendarView.week;
+        }
       }
     }
   }
@@ -92,6 +108,29 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
 
     attempt();
+  }
+
+
+  Widget _wrapScroll(Widget child) {
+    return Listener(
+      onPointerDown: (_) => _fingerDown = true,
+      onPointerUp: (_) => _fingerDown = false,
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (notification is ScrollStartNotification &&
+              notification.dragDetails != null) {
+            _isUserScrolling = true;
+          }
+
+          if (notification is ScrollEndNotification) {
+            _isUserScrolling = false;
+          }
+
+          return false;
+        },
+        child: child,
+      ),
+    );
   }
 
   void _syncCalendarViewMode() {
@@ -146,6 +185,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     _scrollController.removeListener(_onScroll);
     _controller.dispose();
     _scrollController.dispose();
+    _scrollOffset.dispose();
     _monthViewNotifier.dispose();
     super.dispose();
   }
@@ -179,49 +219,52 @@ class _CalendarScreenState extends State<CalendarScreen> {
             valueListenable: _monthViewNotifier,
             builder: (context, isMonthView, _) {
               final listTopInset = isMonthView ? 188.0 : 10.0;
+
               final listTopPadding = safeTop +
                   appBarHeight +
                   calendarHeight +
                   listTopInset;
+
               return Positioned.fill(
                 child: ListenableBuilder(
                   listenable: _controller,
                   builder: (context, _) {
-                    print('CalendarEventListState createdfasdasfads');
-                    return CustomScrollView(
-                      controller: _scrollController,
-                      cacheExtent: _listCacheExtent(_controller),
-                      physics: const BouncingScrollPhysics(
-                        parent: AlwaysScrollableScrollPhysics(),
-                      ),
-                      slivers: [
-                        SliverPadding(
-                          padding: EdgeInsets.only(
-                            top: listTopPadding,
-                            bottom: 120,
-                            left: 16,
-                            right: 16,
-                          ),
-                          sliver: CalendarEventList(
-                            key: _eventListKey,
-                            groups: _controller.eventGroups,
-                            loading: _controller.loading,
-                            listMode: _controller.listMode,
-                            selectedDay: _controller.selected,
-                            displayedMonth: _controller.displayedMonth,
-                            scrollController: _scrollController,
-                            listTopPadding: listTopPadding,
-                            onEventTap: (occurrence) {
-                              EventDetailsBottomSheet.open(
-                                context,
-                                occurrence: occurrence,
-                                onChanged: _controller.refresh,
-                                onDelete: _controller.deleteEvent,
-                              );
-                            },
-                          ),
+                    return _wrapScroll(
+                      CustomScrollView(
+                        controller: _scrollController,
+                        cacheExtent: _listCacheExtent(_controller),
+                        physics: const BouncingScrollPhysics(
+                          parent: AlwaysScrollableScrollPhysics(),
                         ),
-                      ],
+                        slivers: [
+                          SliverPadding(
+                            padding: EdgeInsets.only(
+                              top: listTopPadding,
+                              bottom: 120,
+                              left: 16,
+                              right: 16,
+                            ),
+                            sliver: CalendarEventList(
+                              key: _eventListKey,
+                              groups: _controller.eventGroups,
+                              loading: _controller.loading,
+                              listMode: _controller.listMode,
+                              selectedDay: _controller.selected,
+                              displayedMonth: _controller.displayedMonth,
+                              scrollController: _scrollController,
+                              listTopPadding: listTopPadding,
+                              onEventTap: (occurrence) {
+                                EventDetailsBottomSheet.open(
+                                  context,
+                                  occurrence: occurrence,
+                                  onChanged: _controller.refresh,
+                                  onDelete: _controller.deleteEvent,
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
                     );
                   },
                 ),
@@ -234,15 +277,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
             right: 0,
             child: RepaintBoundary(
               child: _CalendarPinnedHeader(
-                safeTop: safeTop,
                 appBarHeight: appBarHeight,
+                safeTop: safeTop,
+                scrollOffset: _scrollOffset,
                 controller: _controller,
                 monthViewNotifier: _monthViewNotifier,
                 menuItems: _calendarMenuItems,
                 onDateChanged: _onCalendarDateChanged,
               ),
             ),
-          ),
+          )
         ],
       ),
       bottomNavigationBar: const FloatingNavBar(),
@@ -253,7 +297,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
 class _CalendarPinnedHeader extends StatelessWidget {
   const _CalendarPinnedHeader({
     required this.safeTop,
+    // required this.currentAppBarHeight,
+    // required this.titleOpacity,
     required this.appBarHeight,
+    required this.scrollOffset,
     required this.controller,
     required this.monthViewNotifier,
     required this.menuItems,
@@ -261,7 +308,10 @@ class _CalendarPinnedHeader extends StatelessWidget {
   });
 
   final double safeTop;
+  // final double currentAppBarHeight;
+  // final double titleOpacity;
   final double appBarHeight;
+  final ValueNotifier<double> scrollOffset;
   final CalendarScreenController controller;
   final ValueNotifier<bool> monthViewNotifier;
   final List<StatsMenuItem<void>> Function() menuItems;
@@ -313,12 +363,25 @@ class _CalendarPinnedHeader extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SizedBox(
-                height: appBarHeight,
-                child: const Padding(
-                  padding: EdgeInsets.only(bottom: 14),
-                  child: Center(child: appBar(title: 'Calendar')),
-                ),
+              child: ValueListenableBuilder<double>(
+                valueListenable: scrollOffset,
+                builder: (context, offset, _) {
+                  final shrinkProgress =
+                      (offset / appBarHeight).clamp(0.0, 1.0);
+                  final currentAppBarHeight =
+                      appBarHeight * (1 - shrinkProgress);
+                  final titleOpacity = (1 - shrinkProgress).clamp(0.0, 1.0);
+                  return Opacity(
+                    opacity: titleOpacity,
+                    child: SizedBox(
+                      height: currentAppBarHeight,
+                      child: const Padding(
+                        padding: EdgeInsets.only(bottom: 14),
+                        child: Center(child: appBar(title: 'Calendar')),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
             Padding(
@@ -413,22 +476,12 @@ class _CalendarPinnedHeader extends StatelessWidget {
                       ),
                     ],
                   ),
-                  ListenableBuilder(
-                    listenable: controller,
-                    builder: (context, _) {
-                      return RepaintBoundary(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(0, 0, 0, 19),
-                          child: OrgaWeekMonthCalendar(
-                            monthViewNotifier: monthViewNotifier,
-                            selected: controller.selected,
-                            eventDates: controller.eventDates,
-                            onDisplayedMonthChanged: controller.setDisplayedMonth,
-                            onDateChanged: onDateChanged,
-                          ),
-                        ),
-                      );
-                    },
+                  OrgaWeekMonthCalendar(
+                    monthViewNotifier: monthViewNotifier,
+                    selected: controller.selected,
+                    eventDates: controller.eventDates,
+                    onDisplayedMonthChanged: controller.setDisplayedMonth,
+                    onDateChanged: onDateChanged,
                   ),
                 ],
               ),
