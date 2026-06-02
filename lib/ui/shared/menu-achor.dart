@@ -1,22 +1,26 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-class StatsMenuButton<T> extends StatelessWidget {
+class StatsMenuButton<T> extends StatefulWidget {
   final List<StatsMenuItem<T>> items;
   final IconData icon;
   final double size;
   final VoidCallback? onTap;
 
-  /// Current selected value
+  /// Single-value selection (one checkmark in the whole menu).
   final T? selectedValue;
 
-  /// Triggered when user selects an item
+  /// Multi-group selection (one checkmark per group).
+  final Map<Object, Object>? selectedByGroup;
+
+  /// Triggered when user selects an item with a non-null [StatsMenuItem.value].
   final ValueChanged<T>? onSelected;
 
   const StatsMenuButton({
     super.key,
     required this.items,
     this.selectedValue,
+    this.selectedByGroup,
     this.onSelected,
     this.icon = CupertinoIcons.chart_bar_alt_fill,
     this.size = 44,
@@ -24,10 +28,26 @@ class StatsMenuButton<T> extends StatelessWidget {
   });
 
   @override
+  State<StatsMenuButton<T>> createState() => _StatsMenuButtonState<T>();
+}
+
+class _StatsMenuButtonState<T> extends State<StatsMenuButton<T>> {
+  final MenuController _menuController = MenuController();
+
+  bool _isItemSelected(StatsMenuItem<T> item) {
+    if (item.selectionGroup != null) {
+      return widget.selectedByGroup?[item.selectionGroup] ==
+          item.selectionValue;
+    }
+    return item.isSelected || item.value == widget.selectedValue;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final secondary = CupertinoColors.secondaryLabel.resolveFrom(context);
 
     return MenuAnchor(
+      controller: _menuController,
       alignmentOffset: const Offset(0, 8),
       style: MenuStyle(
         backgroundColor: WidgetStatePropertyAll(
@@ -50,8 +70,8 @@ class StatsMenuButton<T> extends StatelessWidget {
       menuChildren: _buildMenuItems(context),
       builder: (context, controller, _) {
         return Container(
-          width: size,
-          height: size,
+          width: widget.size,
+          height: widget.size,
           decoration: BoxDecoration(
             color: CupertinoColors.systemBackground.resolveFrom(context),
             shape: BoxShape.circle,
@@ -70,14 +90,17 @@ class StatsMenuButton<T> extends StatelessWidget {
           child: CupertinoButton(
             padding: EdgeInsets.zero,
             onPressed: () {
-              onTap?.call();
+              widget.onTap?.call();
+              setState(() {});
 
-              controller.isOpen
-                  ? controller.close()
-                  : controller.open();
+              if (_menuController.isOpen) {
+                _menuController.close();
+              } else {
+                _menuController.open();
+              }
             },
             child: Icon(
-              icon,
+              widget.icon,
               size: 22,
               color: secondary,
             ),
@@ -89,11 +112,12 @@ class StatsMenuButton<T> extends StatelessWidget {
 
   List<Widget> _buildMenuItems(BuildContext context) {
     final labelColor = CupertinoColors.label.resolveFrom(context);
+    final checkColor = CupertinoColors.activeBlue.resolveFrom(context);
 
     final destructiveColor =
         CupertinoColors.systemRed.resolveFrom(context);
 
-    return items.map((item) {
+    return widget.items.map((item) {
       if (item.isDivider) {
         return const Padding(
           padding: EdgeInsets.symmetric(horizontal: 14),
@@ -108,15 +132,18 @@ class StatsMenuButton<T> extends StatelessWidget {
       final color =
           item.isDestructive ? destructiveColor : labelColor;
 
-      final isSelected = item.value == selectedValue;
+      final isSelected = _isItemSelected(item);
 
       return MenuItemButton(
         onPressed: () {
           item.onPressed?.call();
 
           if (item.value != null) {
-            onSelected?.call(item.value as T);
+            widget.onSelected?.call(item.value as T);
           }
+
+          _menuController.close();
+          setState(() {});
         },
         style: ButtonStyle(
           minimumSize:
@@ -137,19 +164,16 @@ class StatsMenuButton<T> extends StatelessWidget {
             Expanded(
               child: Text(item.label),
             ),
-
-            if (isSelected)
-              Icon(
-                CupertinoIcons.check_mark,
-                size: 16,
-                color: color,
-              )
-            else if (item.icon != null)
-              Icon(
-                item.icon,
-                size: 18,
-                color: color,
-              ),
+            SizedBox(
+              width: 22,
+              child: isSelected
+                  ? Icon(
+                      CupertinoIcons.check_mark,
+                      size: 18,
+                      color: checkColor,
+                    )
+                  : null,
+            ),
           ],
         ),
       );
@@ -164,6 +188,13 @@ class StatsMenuItem<T> {
   final VoidCallback? onPressed;
   final bool isDestructive;
   final bool isDivider;
+  final bool isSelected;
+
+  /// Group key for [StatsMenuButton.selectedByGroup] (multiple checkmarks).
+  final Object? selectionGroup;
+
+  /// Value within [selectionGroup] that should show the checkmark.
+  final Object? selectionValue;
 
   const StatsMenuItem({
     required this.value,
@@ -171,6 +202,9 @@ class StatsMenuItem<T> {
     this.icon,
     this.onPressed,
     this.isDestructive = false,
+    this.isSelected = false,
+    this.selectionGroup,
+    this.selectionValue,
   }) : isDivider = false;
 
   const StatsMenuItem.divider()
@@ -179,6 +213,9 @@ class StatsMenuItem<T> {
         icon = null,
         onPressed = null,
         isDestructive = false,
+        isSelected = false,
+        selectionGroup = null,
+        selectionValue = null,
         isDivider = true;
 }
 
