@@ -3,20 +3,28 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:orga1/ui/screen/ios/home/component/create-habit.dart';
 import 'package:orga1/ui/screen/ios/home/models/quick_log_habit.dart';
-import 'package:orga1/ui/shared/delete_confirmation.dart';
+import 'package:orga1/ui/shared/menu-achor.dart';
+
+enum _QuickLogMenuAction { statistics, edit, delete }
 
 class QuickLogBottomSheet extends StatefulWidget {
   final QuickLogHabit habit;
+  final DateTime logDate;
   final Function(double updatedValue, String notes) onSave;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final VoidCallback? onStatistics;
   final Future<void> Function(QuickLogHabit updatedHabit)? onEditHabit;
-  final Future<void> Function(String habitId)? onDeleteHabit;
 
   const QuickLogBottomSheet({
     super.key,
     required this.habit,
+    required this.logDate,
     required this.onSave,
+    this.onEdit,
+    this.onDelete,
+    this.onStatistics,
     this.onEditHabit,
-    this.onDeleteHabit,
   });
 
   @override
@@ -42,6 +50,105 @@ class _QuickLogBottomSheetState extends State<QuickLogBottomSheet> {
   String _formatValue(double val) {
     return val % 1 == 0 ? val.toInt().toString() : val.toStringAsFixed(1);
   }
+
+  DateTime get _logDayNormalized => DateTime(
+        widget.logDate.year,
+        widget.logDate.month,
+        widget.logDate.day,
+      );
+
+  bool get _isLoggingToday {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return _logDayNormalized == today;
+  }
+
+  String get _logDayLabel {
+    if (_isLoggingToday) return 'Today';
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final d = _logDayNormalized;
+    return '${weekdays[d.weekday - 1]}, ${months[d.month - 1]} ${d.day}';
+  }
+
+  String _statusSubtitle(double targetValue, String unit) {
+    if (_isCheckmarkType) {
+      return _currentValue >= 1.0
+          ? 'Completed · $_logDayLabel'
+          : 'Not completed · $_logDayLabel';
+    }
+    final unitSuffix = unit.isNotEmpty ? ' $unit' : '';
+    return '${_formatValue(_currentValue)} / ${_formatValue(targetValue)}$unitSuffix · $_logDayLabel';
+  }
+
+  String get _saveButtonLabel =>
+      _isLoggingToday ? 'Save Progress' : 'Save for $_logDayLabel';
+
+  bool get _showMenu =>
+      onEdit != null || onDelete != null || onStatistics != null;
+
+  VoidCallback? get onEdit => widget.onEdit;
+  VoidCallback? get onDelete => widget.onDelete;
+  VoidCallback? get onStatistics => widget.onStatistics;
+
+  List<StatsMenuItem<_QuickLogMenuAction>> _menuItems() {
+    return [
+      StatsMenuItem(
+        value: _QuickLogMenuAction.statistics,
+        label: 'Statistics',
+        icon: CupertinoIcons.chart_bar_alt_fill,
+        onPressed: onStatistics,
+      ),
+      StatsMenuItem(
+        value: _QuickLogMenuAction.edit,
+        label: 'Edit Habit',
+        icon: CupertinoIcons.pencil,
+        onPressed: _handleEdit,
+      ),
+      if (onDelete != null) const StatsMenuItem.divider(),
+      if (onDelete != null)
+        StatsMenuItem(
+          value: _QuickLogMenuAction.delete,
+          label: 'Delete Habit',
+          icon: CupertinoIcons.delete,
+          isDestructive: true,
+          onPressed: _handleDelete,
+        ),
+    ];
+  }
+
+  void _handleEdit() {
+    if (widget.onEdit != null) {
+      widget.onEdit!();
+      return;
+    }
+    _openEditHabitBottomSheet();
+  }
+
+  Future<void> _openEditHabitBottomSheet() async {
+    await CreateHabitScreen.openForEdit(
+      context,
+      initialInput: _habit.toFormInput(),
+      onSaveHabit: (input) async {
+        final next = _habit.applyFormInput(input);
+        setState(() {
+          _habit = next;
+          _isCheckmarkType = next.isCheckmark;
+        });
+        await widget.onEditHabit?.call(next);
+      },
+      onDeleteHabit: widget.onDelete != null
+          ? (id) async {
+              widget.onDelete!();
+            }
+          : null,
+    );
+  }
+
+  void _handleDelete() => widget.onDelete?.call();
 
   // Uses our smart adaptive step sizing rule
   double _getStepSize() {
@@ -78,42 +185,6 @@ class _QuickLogBottomSheetState extends State<QuickLogBottomSheet> {
     });
   }
 
-  Future<void> _openEditHabitBottomSheet() async {
-    await CreateHabitScreen.openForEdit(
-      context,
-      initialInput: _habit.toFormInput(),
-      onSaveHabit: (input) async {
-        final next = _habit.applyFormInput(input);
-        setState(() {
-          _habit = next;
-          _isCheckmarkType = next.isCheckmark;
-        });
-        await widget.onEditHabit?.call(next);
-      },
-      onDeleteHabit: (id) async {
-        await widget.onDeleteHabit?.call(id);
-        if (!mounted) return;
-        Navigator.pop(context);
-      },
-    );
-  }
-
-  Future<void> _confirmDeleteHabit() async {
-    if (widget.onDeleteHabit == null) return;
-
-    final confirmed = await confirmDelete(
-      context,
-      title: 'Delete Habit?',
-      message:
-          'This removes the habit and all of its logged progress. This cannot be undone.',
-    );
-    if (!confirmed || !mounted) return;
-
-    await widget.onDeleteHabit!(_habit.id);
-    if (!mounted) return;
-    Navigator.pop(context);
-  }
-
   @override
   void dispose() {
     _valueController.dispose();
@@ -125,13 +196,13 @@ class _QuickLogBottomSheetState extends State<QuickLogBottomSheet> {
   Widget build(BuildContext context) {
     final Color themeColor = _habit.color;
     final String unit = _habit.unit;
-    final bool isCompleted = _currentValue >= 1.0;
     final mq = MediaQuery.of(context);
     final double targetValue = _habit.targetValue;
-
-        // Progress calculation safely clamped between 0.0 and 1.0
-    final double progressPct =
-        targetValue > 0 ? (_currentValue / targetValue).clamp(0.0, 1.0) : 0.0;
+    final bool isCompleted =
+        targetValue > 0 ? _currentValue >= targetValue : _currentValue >= 1.0;
+    final double progressPct = targetValue > 0
+        ? (_currentValue / targetValue).clamp(0.0, 1.0)
+        : 0.0;
 
     return Container(
       padding: EdgeInsets.only(
@@ -174,47 +245,41 @@ class _QuickLogBottomSheetState extends State<QuickLogBottomSheet> {
                       _habit.title,
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-                    Text(
-                      _isCheckmarkType
-                          ? (isCompleted ? "Status: Done today!" : "Status: Pending")
-                          : "Target: ${_formatValue(targetValue)} $unit",
-                      style: const TextStyle(fontSize: 13, color: CupertinoColors.secondaryLabel),
-                    ),
+                    // const SizedBox(height: 4),
+                    // Container(
+                    //   padding: const EdgeInsets.symmetric(
+                    //     horizontal: 8,
+                    //     vertical: 3,
+                    //   ),
+                    //   decoration: BoxDecoration(
+                    //     color: themeColor.withOpacity(0.12),
+                    //     borderRadius: BorderRadius.circular(6),
+                    //   ),
+                    //   child: Text(
+                    //     _logDayLabel,
+                    //     style: TextStyle(
+                    //       fontSize: 12,
+                    //       fontWeight: FontWeight.w600,
+                    //       color: themeColor,
+                    //     ),
+                    //   ),
+                    // ),
+                    // const SizedBox(height: 2),
+                    // Text(
+                    //   _statusSubtitle(targetValue, unit),
+                    //   style: const TextStyle(
+                    //     fontSize: 13,
+                    //     color: CupertinoColors.secondaryLabel,
+                    //   ),
+                    // ),
                   ],
                 ),
               ),
-
-              // 1. EDIT ACTION ICON BUTTON
-              CupertinoButton(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                onPressed: _openEditHabitBottomSheet,
-                child: Icon(
-                  CupertinoIcons.pencil_circle_fill,
-                  color: themeColor,
+              if (_showMenu)
+                StatsMenuButton<_QuickLogMenuAction>(
+                  icon: CupertinoIcons.ellipsis,
                   size: 36,
-                ),
-              ),
-
-              // 2. STATISTICS ACTION ICON BUTTON
-              CupertinoButton(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                onPressed: () => {},
-                child: Icon(
-                  CupertinoIcons.chart_bar_alt_fill,
-                  color: themeColor.withOpacity(0.85),
-                  size: 34,
-                ),
-              ),
-
-              if (widget.onDeleteHabit != null)
-                CupertinoButton(
-                  padding: const EdgeInsets.only(left: 6, right: 2),
-                  onPressed: _confirmDeleteHabit,
-                  child: const Icon(
-                    CupertinoIcons.delete_solid,
-                    color: CupertinoColors.inactiveGray,
-                    size: 34,
-                  ),
+                  items: _menuItems(),
                 ),
             ],
           ),
@@ -275,7 +340,13 @@ class _QuickLogBottomSheetState extends State<QuickLogBottomSheet> {
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    isCompleted ? "Completed" : "Mark as Completed",
+                    isCompleted
+                        ? (_isLoggingToday
+                            ? 'Completed'
+                            : 'Completed on $_logDayLabel')
+                        : (_isLoggingToday
+                            ? 'Mark as Completed'
+                            : 'Mark $_logDayLabel Complete'),
                     style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w600,
@@ -362,10 +433,13 @@ class _QuickLogBottomSheetState extends State<QuickLogBottomSheet> {
                 widget.onSave(_currentValue, _notesController.text.trim());
                 Navigator.pop(context);
               },
-              child: const Text(
-                'Save Progress',
-
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17, color: Colors.white),
+              child: Text(
+                _saveButtonLabel,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 17,
+                  color: Colors.white,
+                ),
               ),
             ),
           ),

@@ -1,10 +1,13 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:orga1/ui/screen/ios/home/models/habit_form_input.dart';
 import 'package:orga1/ui/screen/ios/home/models/habit_with_events.dart';
 
 import '../../../shared/appbar.dart';
+import '../../../shared/delete_confirmation.dart';
 import '../../../shared/navigationBar.dart';
+import 'component/create-habit.dart';
 import 'component/habit_card.dart';
 import 'component/habit_card_week.dart';
 import 'component/quick-log-bottom-sheet.dart';
@@ -126,6 +129,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                                 .selectHabit(item.habit.id);
                                             _showQuickLogModal(context, item);
                                           },
+                                          onEdit: () =>
+                                              _openEditHabit(context, item),
+                                          onDelete: () => _confirmDeleteHabit(
+                                            context,
+                                            item,
+                                          ),
+                                          onStatistics: () {},
                                         );
                                       }
 
@@ -227,6 +237,46 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _openEditHabit(
+    BuildContext context,
+    HabitWithEvents item, {
+    bool closeQuickLogOnDelete = false,
+  }) {
+    CreateHabitScreen.openForEdit(
+      context,
+      initialInput: HabitFormInput.fromHabit(item.habit),
+      onSaveHabit: _controller.saveHabit,
+      onDeleteHabit: (id) async {
+        await _controller.deleteHabit(id);
+        if (closeQuickLogOnDelete && context.mounted) {
+          Navigator.pop(context);
+        }
+      },
+    );
+  }
+
+  Future<void> _confirmDeleteHabit(
+    BuildContext context,
+    HabitWithEvents item,
+  ) async {
+    final confirmed = await confirmDelete(
+      context,
+      title: 'Delete Habit?',
+      message:
+          'This removes the habit and all of its logged progress. This cannot be undone.',
+    );
+    if (!confirmed) return;
+    await _controller.deleteHabit(item.habit.id);
+  }
+
+  Future<void> _confirmDeleteHabitFromSheet(
+    BuildContext context,
+    HabitWithEvents item,
+  ) async {
+    await _confirmDeleteHabit(context, item);
+    if (context.mounted) Navigator.pop(context);
+  }
+
   void _handleWeekDayTap(
     BuildContext context,
     HabitWithEvents item,
@@ -255,8 +305,15 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) => QuickLogBottomSheet(
         habit: quickLogHabit,
+        logDate: day,
+        onEdit: () => _openEditHabit(
+          context,
+          item,
+          closeQuickLogOnDelete: true,
+        ),
+        onDelete: () => _confirmDeleteHabitFromSheet(context, item),
+        onStatistics: () {},
         onEditHabit: _controller.updateHabitFromQuickLog,
-        onDeleteHabit: _controller.deleteHabit,
         onSave: (updatedValue, notes) async {
           if (notes.isNotEmpty) {
             debugPrint('Attached note to session: $notes');

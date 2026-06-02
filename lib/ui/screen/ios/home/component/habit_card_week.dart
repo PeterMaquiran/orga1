@@ -1,11 +1,18 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:orga1/ui/screen/ios/home/models/habit_with_events.dart';
+import 'package:orga1/ui/shared/menu-achor.dart';
+
+enum HabitWeekCardMenuAction { statistics, edit, delete }
 
 class HabitWeekMatrixCard extends StatelessWidget {
   final HabitWithEvents item;
   final DateTime targetDate;
   final ValueChanged<DateTime> onDayTap;
   final VoidCallback? onTap;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final VoidCallback? onStatistics;
   /// `1` = previous week, `-1` = next week (when user swipes horizontally).
   final ValueChanged<int>? onWeekShift;
 
@@ -15,8 +22,37 @@ class HabitWeekMatrixCard extends StatelessWidget {
     required this.targetDate,
     required this.onDayTap,
     this.onTap,
+    this.onEdit,
+    this.onDelete,
+    this.onStatistics,
     this.onWeekShift,
   });
+
+  List<StatsMenuItem<HabitWeekCardMenuAction>> _menuItems() {
+    return [
+      StatsMenuItem(
+        value: HabitWeekCardMenuAction.statistics,
+        label: 'Statistics',
+        icon: CupertinoIcons.chart_bar_alt_fill,
+        onPressed: onStatistics,
+      ),
+      StatsMenuItem(
+        value: HabitWeekCardMenuAction.edit,
+        label: 'Edit Habit',
+        icon: CupertinoIcons.pencil,
+        onPressed: onEdit,
+      ),
+      if (onDelete != null) const StatsMenuItem.divider(),
+      if (onDelete != null)
+        StatsMenuItem(
+          value: HabitWeekCardMenuAction.delete,
+          label: 'Delete Habit',
+          icon: CupertinoIcons.delete,
+          isDestructive: true,
+          onPressed: onDelete,
+        ),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,41 +93,57 @@ class HabitWeekMatrixCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GestureDetector(
-            onTap: onTap,
-            behavior: HitTestBehavior.opaque,
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: habit.color.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(habit.emoji, style: const TextStyle(fontSize: 20)),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: (){},
+                  behavior: HitTestBehavior.opaque,
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: habit.color.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            habit.emoji,
+                            style: const TextStyle(fontSize: 20),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          habit.title,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                      // if (onTap != null)
+                      //   Icon(
+                      //     Icons.chevron_right,
+                      //     size: 18,
+                      //     color: Colors.black.withOpacity(0.25),
+                      //   ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    habit.title,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
+              ),
+              if (onEdit != null || onDelete != null)
+                StatsMenuButton<HabitWeekCardMenuAction>(
+                  icon: CupertinoIcons.ellipsis,
+                  size: 36,
+                  items: _menuItems(),
                 ),
-                if (onTap != null)
-                  Icon(
-                    Icons.chevron_right,
-                    size: 18,
-                    color: Colors.black.withOpacity(0.25),
-                  ),
-              ],
-            ),
+            ],
           ),
           const SizedBox(height: 12),
           Divider(color: Colors.black.withOpacity(0.05), height: 1, thickness: 1),
